@@ -362,6 +362,15 @@ LinphoneCallStatus linphone_call_log_get_status(LinphoneCallLog *cl){
 }
 
 /**
+ * Restart audio streams using new devices.
+ */
+void linphone_call_restart_audio_stream(LinphoneCore *lc) {
+	LinphoneCall *call = linphone_core_get_current_call(lc);
+	linphone_call_stop_audio_stream(call);
+	linphone_call_init_audio_stream(call);
+}
+
+/**
  * Returns the start date of the call, expressed as a POSIX time_t.
 **/
 time_t linphone_call_log_get_start_date(LinphoneCallLog *cl){
@@ -522,6 +531,7 @@ static void build_sound_devices_table(LinphoneCore *lc){
 	const char **old;
 	int ndev;
 	int i;
+	printf("rebuilding sound device table\n");
 	const MSList *elem=ms_snd_card_manager_get_list(ms_snd_card_manager_get());
 	ndev=ms_list_size(elem);
 	devices=ms_malloc((ndev+1)*sizeof(const char *));

@@ -363,6 +363,7 @@ LINPHONE_PUBLIC	const rtp_stats_t *linphone_call_log_get_local_stats(const Linph
 LINPHONE_PUBLIC	const rtp_stats_t *linphone_call_log_get_remote_stats(const LinphoneCallLog *cl);
 LINPHONE_PUBLIC	const char *linphone_call_log_get_call_id(const LinphoneCallLog *cl);
 LINPHONE_PUBLIC	char * linphone_call_log_to_str(LinphoneCallLog *cl);
+LINPHONE_PUBLIC void linphone_call_restart_audio_stream(LinphoneCore *lc);
 
 /**
  * Private structure definition for LinphoneCallParams.

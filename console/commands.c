@@ -218,8 +218,14 @@ static LPC_COMMAND commands[] = {
 	},
 	{ "soundcard", lpc_cmd_soundcard, "Manage soundcards",
 		"'soundcard list' : list all sound devices.\n"
+		"'soundcard list capture' : list capture sound devices.\n"
+		"'soundcard list playback' : list playback sound devices.\n"
+		"'soundcard list ringer' : list ringer sound devices.\n"
 		"'soundcard show' : show current sound devices configuration.\n"
 		"'soundcard use <index>' : select a sound device.\n"
+		"'soundcard capture <index>' : select a capture device.\n"
+		"'soundcard playback <index>' : select a playback device.\n"
+		"'soundcard ringer <index>' : select a ringer device.\n"
 		"'soundcard use files' : use .wav files instead of soundcard\n"
 	},
 	{ "webcam", lpc_cmd_webcam, "Manage webcams",
@@ -1215,9 +1221,25 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 
 	if (strcmp(arg1, "list")==0)
 	{
+		linphone_core_reload_sound_devices(lc);
+		int mode = 0;
+		if (arg2 && strcmp(arg2, "capture")==0)
+		{
+			mode = 1;
+		}
+		// Assuming from missing linphone_core_sound_device_can_playback
+		// that playback and ringing devices are the same. Seems logical though...
+		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ringer")==0))
+		{
+			mode = 2;
+		}
 		dev=linphone_core_get_sound_devices(lc);
 		for(i=0; dev[i]!=NULL; ++i){
-			linphonec_out("%i: %s\n",i,dev[i]);
+			bool_t playback = linphone_core_sound_device_can_playback(lc, dev[i]);
+			if (mode == 0 || ( mode == 1 && !playback) || (mode == 2 && playback))
+			{
+				linphonec_out("%i: %s\n",i,dev[i]);
+			}
 		}
 		return 1;
 	}
@@ -1252,6 +1274,9 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphone_core_set_playback_device(lc,dev[i]);
 			linphone_core_set_capture_device(lc,dev[i]);
 			linphonec_out("Using sound device %s\n",dev[i]);
+
+			linphone_call_restart_audio_stream(lc);
+
 			return 1;
 		}
 		linphonec_out("No such sound device\n");
@@ -1268,6 +1293,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			devname=index_to_devname(lc,index);
 			if (devname!=NULL){
 				linphone_core_set_capture_device(lc,devname);
+				linphone_call_restart_audio_stream(lc);
 				linphonec_out("Using capture sound device %s\n",devname);
 				return 1;
 			}
@@ -1286,6 +1312,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			devname=index_to_devname(lc,index);
 			if (devname!=NULL){
 				linphone_core_set_playback_device(lc,devname);
+				linphone_call_restart_audio_stream(lc);
 				linphonec_out("Using playback sound device %s\n",devname);
 				return 1;
 			}
