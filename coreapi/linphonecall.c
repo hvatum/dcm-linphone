@@ -197,6 +197,7 @@ static MSList *make_codec_list(LinphoneCore *lc, const MSList *codecs, int bandw
 	if (max_sample_rate) *max_sample_rate=0;
 	for(it=codecs;it!=NULL;it=it->next){
 		PayloadType *pt=(PayloadType*)it->data;
+		payload_type_unset_flag(pt, PAYLOAD_TYPE_RTCP_FEEDBACK_ENABLED); /* Disable AVPF for the moment. */
 		if (pt->flags & PAYLOAD_TYPE_ENABLED){
 			if (bandwidth_limit>0 && !linphone_core_is_payload_type_usable_for_bandwidth(lc,pt,bandwidth_limit)){
 				ms_message("Codec %s/%i eliminated because of audio bandwidth constraint of %i kbit/s",
@@ -1404,7 +1405,10 @@ static void video_stream_event_cb(void *user_pointer, const MSFilter *f, const u
 	switch (event_id) {
 		case MS_VIDEO_DECODER_DECODING_ERRORS:
 			ms_warning("Case is MS_VIDEO_DECODER_DECODING_ERRORS");
-			linphone_call_send_vfu_request(call);
+			if (call->videostream && (video_stream_is_decoding_error_to_be_reported(call->videostream, 5000) == TRUE)) {
+				video_stream_decoding_error_reported(call->videostream);
+				linphone_call_send_vfu_request(call);
+			}
 			break;
 		case MS_VIDEO_DECODER_FIRST_IMAGE_DECODED:
 			ms_message("First video frame decoded successfully");
