@@ -1190,7 +1190,7 @@ static int devname_to_index(LinphoneCore *lc, const char *devname){
 	}
 	return -1;
 }
-
+/*
 static const char *index_to_devname(LinphoneCore *lc, int index){
 	const char **p;
 	int i;
@@ -1199,6 +1199,7 @@ static const char *index_to_devname(LinphoneCore *lc, int index){
 	}
 	return NULL;
 }
+*/
 
 static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 {
