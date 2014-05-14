@@ -2242,7 +2242,7 @@ static void linphone_call_log_fill_stats(LinphoneCallLog *log, MediaStream *st){
 }
 
 void linphone_call_stop_audio_stream(LinphoneCall *call) {
-	if (call->audiostream!=NULL) {
+	if (call != NULL && call->audiostream!=NULL) {
 		linphone_reporting_update(call, LINPHONE_CALL_STATS_AUDIO);
 		media_stream_reclaim_sessions(&call->audiostream->ms,&call->sessions[0]);
 		rtp_session_unregister_event_queue(call->audiostream->ms.sessions.rtp_session,call->audiostream_app_evq);
