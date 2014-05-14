@@ -366,8 +366,10 @@ LinphoneCallStatus linphone_call_log_get_status(LinphoneCallLog *cl){
  */
 void linphone_call_restart_audio_stream(LinphoneCore *lc) {
 	LinphoneCall *call = linphone_core_get_current_call(lc);
-	linphone_call_stop_audio_stream(call);
-	linphone_call_init_audio_stream(call);
+	if (call) {
+		linphone_call_stop_audio_stream(call);
+		linphone_call_init_audio_stream(call);
+	}
 }
 
 /**
