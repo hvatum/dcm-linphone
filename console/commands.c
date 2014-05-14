@@ -1229,7 +1229,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		// Assuming from missing linphone_core_sound_device_can_playback
 		// that playback and ringing devices are the same. Seems logical though...
-		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ringer")==0))
+		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ring")==0))
 		{
 			mode = 2;
 		}
@@ -1289,12 +1289,15 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using capture device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
+			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			devname=index_to_devname(lc,index);
-			if (devname!=NULL){
-				linphone_core_set_capture_device(lc,devname);
+			for(i=0;dev[i]!=NULL;i++)
+			{
+				if (i!=index) continue;
+
+				linphone_core_set_capture_device(lc,dev[i]);
 				linphone_call_restart_audio_stream(lc);
-				linphonec_out("Using capture sound device %s\n",devname);
+				linphonec_out("Using capture sound device %s\n",dev[i]);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
@@ -1308,12 +1311,15 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using playback device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
+			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			devname=index_to_devname(lc,index);
-			if (devname!=NULL){
-				linphone_core_set_playback_device(lc,devname);
+			for(i=0;dev[i]!=NULL;i++)
+			{
+				if (i!=index) continue;
+
+				linphone_core_set_playback_device(lc,dev[i]);
 				linphone_call_restart_audio_stream(lc);
-				linphonec_out("Using playback sound device %s\n",devname);
+				linphonec_out("Using playback sound device %s\n",dev[i]);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
@@ -1327,11 +1333,14 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using ring device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
+			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			devname=index_to_devname(lc,index);
-			if (devname!=NULL){
-				linphone_core_set_ringer_device(lc,devname);
-				linphonec_out("Using ring sound device %s\n",devname);
+			for(i=0;dev[i]!=NULL;i++)
+			{
+				if (i!=index) continue;
+
+				linphone_core_set_ringer_device(lc,dev[i]);
+				linphonec_out("Using ring sound device %s\n",dev[i]);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
