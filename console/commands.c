@@ -1265,7 +1265,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 
 		index=atoi(arg2); /* FIXME: handle not-a-number */
-		devname=index_to_devname(lc,index);
+		const char *devname=index_to_devname(lc,index);
 		if (devname!=NULL){
 			linphone_core_set_ringer_device(lc,devname);
 			linphone_core_set_playback_device(lc,devname);
