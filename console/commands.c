@@ -1190,7 +1190,7 @@ static int devname_to_index(LinphoneCore *lc, const char *devname){
 	}
 	return -1;
 }
-/*
+
 static const char *index_to_devname(LinphoneCore *lc, int index){
 	const char **p;
 	int i;
@@ -1199,7 +1199,6 @@ static const char *index_to_devname(LinphoneCore *lc, int index){
 	}
 	return NULL;
 }
-*/
 
 static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 {
@@ -1265,19 +1264,13 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			return 1;
 		}
 
-		dev=linphone_core_get_sound_devices(lc);
 		index=atoi(arg2); /* FIXME: handle not-a-number */
-		for(i=0;dev[i]!=NULL;i++)
-		{
-			if (i!=index) continue;
-
-			linphone_core_set_ringer_device(lc,dev[i]);
-			linphone_core_set_playback_device(lc,dev[i]);
-			linphone_core_set_capture_device(lc,dev[i]);
-			linphonec_out("Using sound device %s\n",dev[i]);
-
-			linphone_call_restart_audio_stream(lc);
-
+		devname=index_to_devname(lc,index);
+		if (devname!=NULL){
+			linphone_core_set_ringer_device(lc,devname);
+			linphone_core_set_playback_device(lc,devname);
+			linphone_core_set_capture_device(lc,devname);
+			linphonec_out("Using sound device %s\n",devname);
 			return 1;
 		}
 		linphonec_out("No such sound device\n");
@@ -1290,15 +1283,11 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using capture device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
-			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			for(i=0;dev[i]!=NULL;i++)
-			{
-				if (i!=index) continue;
-
-				linphone_core_set_capture_device(lc,dev[i]);
-				linphone_call_restart_audio_stream(lc);
-				linphonec_out("Using capture sound device %s\n",dev[i]);
+			devname=index_to_devname(lc,index);
+			if (devname!=NULL){
+				linphone_core_set_capture_device(lc,devname);
+				linphonec_out("Using capture sound device %s\n",devname);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
@@ -1312,15 +1301,11 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using playback device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
-			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			for(i=0;dev[i]!=NULL;i++)
-			{
-				if (i!=index) continue;
-
-				linphone_core_set_playback_device(lc,dev[i]);
-				linphone_call_restart_audio_stream(lc);
-				linphonec_out("Using playback sound device %s\n",dev[i]);
+			devname=index_to_devname(lc,index);
+			if (devname!=NULL){
+				linphone_core_set_playback_device(lc,devname);
+				linphonec_out("Using playback sound device %s\n",devname);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
@@ -1334,14 +1319,11 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphonec_out("Using ring device #%i (%s)\n",
 					devname_to_index(lc,devname),devname);
 		}else{
-			dev=linphone_core_get_sound_devices(lc);
 			index=atoi(arg2); /* FIXME: handle not-a-number */
-			for(i=0;dev[i]!=NULL;i++)
-			{
-				if (i!=index) continue;
-
-				linphone_core_set_ringer_device(lc,dev[i]);
-				linphonec_out("Using ring sound device %s\n",dev[i]);
+			devname=index_to_devname(lc,index);
+			if (devname!=NULL){
+				linphone_core_set_ringer_device(lc,devname);
+				linphonec_out("Using ring sound device %s\n",devname);
 				return 1;
 			}
 			linphonec_out("No such sound device\n");
