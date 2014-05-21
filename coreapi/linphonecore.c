@@ -5665,7 +5665,7 @@ void sip_config_uninit(LinphoneCore *lc)
 	if (lc->network_reachable) {
 		for(elem=config->proxies;elem!=NULL;elem=ms_list_next(elem)){
 			LinphoneProxyConfig *cfg=(LinphoneProxyConfig*)(elem->data);
-			linphone_proxy_config_edit(cfg);	/* to unregister */
+			_linphone_proxy_config_unregister(cfg);	/* to unregister without changing the stored flag enable_register */
 		}
 
 		ms_message("Unregistration started.");
@@ -5739,6 +5739,7 @@ void rtp_config_uninit(LinphoneCore *lc)
 	lp_config_set_int(lc->config,"rtp","nortp_timeout",config->nortp_timeout);
 	lp_config_set_int(lc->config,"rtp","audio_adaptive_jitt_comp_enabled",config->audio_adaptive_jitt_comp_enabled);
 	lp_config_set_int(lc->config,"rtp","video_adaptive_jitt_comp_enabled",config->video_adaptive_jitt_comp_enabled);
+	ms_free(config->srtp_suites);
 }
 
 static void sound_config_uninit(LinphoneCore *lc)
