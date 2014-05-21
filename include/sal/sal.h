@@ -166,7 +166,7 @@ typedef struct SalIceRemoteCandidate {
 #define SAL_MEDIA_DESCRIPTION_MAX_ICE_PWD_LEN 256
 
 /*sufficient for 256bit keys encoded in base 64*/
-#define SAL_SRTP_KEY_SIZE 64
+#define SAL_SRTP_KEY_SIZE 128
 
 typedef struct SalSrtpCryptoAlgo {
 	unsigned int tag;
@@ -551,6 +551,9 @@ void sal_op_set_to_address(SalOp *op, const SalAddress *to);
 SalOp *sal_op_ref(SalOp* h);
 void sal_op_stop_refreshing(SalOp *op);
 void sal_op_release(SalOp *h);
+/*same as release, but does not stop refresher if any*/
+void* sal_op_unref(SalOp* op);
+
 void sal_op_authenticate(SalOp *h, const SalAuthInfo *info);
 void sal_op_cancel_authentication(SalOp *h);
 void sal_op_set_user_pointer(SalOp *h, void *up);

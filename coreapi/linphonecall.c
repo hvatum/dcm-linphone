@@ -232,9 +232,35 @@ static void update_media_description_from_stun(SalMediaDescription *md, const St
 	}
 }
 
+static int setup_encryption_key(SalSrtpCryptoAlgo *crypto, MSCryptoSuite suite, unsigned int tag){
+	int keylen=0;
+	crypto->tag=tag;
+	crypto->algo=suite;
+	switch(suite){
+		case MS_AES_128_SHA1_80:
+		case MS_AES_128_SHA1_32:
+		case MS_AES_128_NO_AUTH:
+		case MS_NO_CIPHER_SHA1_80: /*not sure for this one*/
+			keylen=30;
+		break;
+		case MS_AES_256_SHA1_80:
+		case MS_AES_256_SHA1_32:
+			keylen=46;
+		break;
+		case MS_CRYPTO_SUITE_INVALID:
+		break;
+	}
+	if (keylen==0 || !generate_b64_crypto_key(30, crypto->master_key, SAL_SRTP_KEY_SIZE)){
+		ms_error("Could not generate SRTP key.");
+		crypto->algo = 0;
+		return -1;
+	}
+	return 0;
+}
+
 static void setup_encryption_keys(LinphoneCall *call, SalMediaDescription *md){
 	LinphoneCore *lc=call->core;
-	int i;
+	int i,j;
 	SalMediaDescription *old_md=call->localdesc;
 	bool_t keep_srtp_keys=lp_config_get_int(lc->config,"sip","keep_srtp_keys",1);
 
@@ -247,15 +273,10 @@ static void setup_encryption_keys(LinphoneCall *call, SalMediaDescription *md){
 					memcpy(&md->streams[i].crypto[j],&old_md->streams[i].crypto[j],sizeof(SalSrtpCryptoAlgo));
 				}
 			}else{
-				md->streams[i].crypto[0].tag = 1;
-				md->streams[i].crypto[0].algo = MS_AES_128_SHA1_80;
-				if (!generate_b64_crypto_key(30, md->streams[i].crypto[0].master_key, SAL_SRTP_KEY_SIZE))
-					md->streams[i].crypto[0].algo = 0;
-				md->streams[i].crypto[1].tag = 2;
-				md->streams[i].crypto[1].algo = MS_AES_128_SHA1_32;
-				if (!generate_b64_crypto_key(30, md->streams[i].crypto[1].master_key, SAL_SRTP_KEY_SIZE))
-					md->streams[i].crypto[1].algo = 0;
-				md->streams[i].crypto[2].algo = 0;
+				const MSCryptoSuite *suites=linphone_core_get_srtp_crypto_suites(lc);
+				for(j=0;suites!=NULL && suites[j]!=MS_CRYPTO_SUITE_INVALID && j<SAL_CRYPTO_ALGO_MAX;++j){
+					setup_encryption_key(&md->streams[i].crypto[j],suites[j],j+1);
+				}
 			}
 		}
 	}
@@ -583,6 +604,7 @@ LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *fro
 	LinphoneCall *call=ms_new0(LinphoneCall,1);
 	char *from_str;
 	const SalMediaDescription *md;
+	LinphoneFirewallPolicy fpol;
 
 	call->dir=LinphoneCallIncoming;
 	sal_op_set_user_pointer(op,call);
@@ -628,14 +650,20 @@ LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *fro
 		// In this case WE chose the media parameters according to policy.
 		call->params.has_video &= linphone_core_media_description_contains_video_stream(md);
 	}
+	fpol=linphone_core_get_firewall_policy(call->core);
 	/*create the ice session now if ICE is required*/
-	if (linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseIce){
-		call->ice_session = ice_session_new();
-		ice_session_set_role(call->ice_session, IR_Controlled);
+	if (fpol==LinphonePolicyUseIce){
+		if (md){
+			call->ice_session = ice_session_new();
+			ice_session_set_role(call->ice_session, IR_Controlled);
+		}else{
+			fpol=LinphonePolicyNoFirewall;
+			ms_warning("ICE not supported for incoming INVITE without SDP.");
+		}
 	}
 	/*reserve the sockets immediately*/
 	linphone_call_init_media_streams(call);
-	switch (linphone_core_get_firewall_policy(call->core)) {
+	switch (fpol) {
 		case LinphonePolicyUseIce:
 			linphone_call_prepare_ice(call,TRUE);
 			break;
@@ -1953,6 +1981,7 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, const char *cna
 				}
 			}
 			configure_rtp_session_for_rtcp_xr(lc, call, SalAudio);
+			audio_stream_set_rtcp_information(call->audiostream, cname, rtcp_tool);
 			audio_stream_start_full(
 				call->audiostream,
 				call->audio_profile,
@@ -1979,7 +2008,6 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, const char *cna
 			if (send_ringbacktone){
 				setup_ring_player(lc,call);
 			}
-			audio_stream_set_rtcp_information(call->audiostream, cname, rtcp_tool);
 
 			if (call->params.in_conference){
 				/*transform the graph to connect it to the conference filter */
@@ -2077,12 +2105,12 @@ static void linphone_call_start_video_stream(LinphoneCall *call, const char *cna
 				video_stream_set_direction (call->videostream, dir);
 				ms_message("%s lc rotation:%d\n", __FUNCTION__, lc->device_rotation);
 				video_stream_set_device_rotation(call->videostream, lc->device_rotation);
+				video_stream_set_rtcp_information(call->videostream, cname, rtcp_tool);
 				video_stream_start(call->videostream,
 					call->video_profile, rtp_addr, vstream->rtp_port,
 					rtcp_addr,
 					linphone_core_rtcp_enabled(lc) ? (vstream->rtcp_port ? vstream->rtcp_port : vstream->rtp_port+1) : 0,
 					used_pt, linphone_core_get_video_jittcomp(lc), cam);
-				video_stream_set_rtcp_information(call->videostream, cname,rtcp_tool);
 			}
 		}else ms_warning("No video stream accepted.");
 	}else{

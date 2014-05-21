@@ -393,6 +393,9 @@ LinphoneProxyConfig * is_a_linphone_proxy_config(void *user_pointer);
 void linphone_core_queue_task(LinphoneCore *lc, belle_sip_source_func_t task_fun, void *data, const char *task_description);
 
 static const int linphone_proxy_config_magic=0x7979;
+bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const LinphoneAddress *b);
+bool_t linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
+void _linphone_proxy_config_unregister(LinphoneProxyConfig *obj);
 
 /*chat*/
 void linphone_chat_message_destroy(LinphoneChatMessage* msg);
@@ -428,6 +431,11 @@ struct _LinphoneProxyConfig
 	void* user_data;
 	time_t deletion_date;
 	LinphonePrivacyMask privacy;
+	/*use to check if server config has changed  between edit() and done()*/
+	LinphoneAddress *saved_proxy;
+	LinphoneAddress *saved_identity;
+	/*---*/
+
 };
 
 struct _LinphoneAuthInfo
@@ -451,6 +459,7 @@ struct _LinphoneChatRoom{
 	LinphoneAddress *peer_url;
 	void * user_data;
 	MSList *messages_hist;
+	MSList *transient_messages;
 	LinphoneIsComposingState remote_is_composing;
 	LinphoneIsComposingState is_composing;
 	belle_sip_source_t *remote_composing_refresh_timer;
@@ -510,6 +519,7 @@ typedef struct rtp_config
 	int video_jitt_comp;  /*jitter compensation*/
 	int nortp_timeout;
 	int disable_upnp;
+	MSCryptoSuite *srtp_suites;
 	bool_t rtp_no_xmit_on_audio_mute;
 							  /* stop rtp xmit when audio muted */
 	bool_t audio_adaptive_jitt_comp_enabled;
@@ -877,6 +887,7 @@ static inline const LinphoneErrorInfo *linphone_error_info_from_sal_op(const Sal
 	return (const LinphoneErrorInfo*)sal_op_get_error_info(op);
 }
 
+const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc);
 
 /** Belle Sip-based objects need unique ids
   */
