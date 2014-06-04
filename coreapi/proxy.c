@@ -49,10 +49,7 @@ bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const Linph
 
 	if (linphone_address_weak_equal(a,b)) {
 		/*also check both transport and uri */
-		if (!(linphone_address_is_secure(a) ^ linphone_address_is_secure(b))) {
-			return linphone_address_get_transport(a) == linphone_address_get_transport(b);
-		} else
-			return FALSE; /*secure flag not equals*/
+		return linphone_address_is_secure(a) == linphone_address_is_secure(b) && linphone_address_get_transport(a) == linphone_address_get_transport(b);
 	} else
 		return FALSE; /*either username, domain or port ar not equals*/
 
@@ -61,14 +58,21 @@ bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const Linph
 bool_t linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj) {
 	LinphoneAddress *current_identity=obj->reg_identity?linphone_address_new(obj->reg_identity):NULL;
 	LinphoneAddress *current_proxy=obj->reg_proxy?linphone_address_new(obj->reg_proxy):NULL;
+	bool_t result=FALSE;
+	
+	if (!linphone_proxy_config_address_equal(obj->saved_identity,current_identity)){
+		result=TRUE;
+		goto end;
+	}
+	if (!linphone_proxy_config_address_equal(obj->saved_proxy,current_proxy)){
+		result=TRUE;
+		goto end;
+	}
 
-	if (!linphone_proxy_config_address_equal(obj->saved_identity,current_identity))
-		return TRUE;
-
-	if (!linphone_proxy_config_address_equal(obj->saved_proxy,current_proxy))
-		return TRUE;
-
-	return FALSE;
+	end:
+	if (current_identity) linphone_address_destroy(current_identity);
+	if (current_proxy) linphone_address_destroy(current_proxy);
+	return result;
 }
 
 void linphone_proxy_config_write_all_to_config_file(LinphoneCore *lc){
@@ -108,6 +112,8 @@ static void linphone_proxy_config_init(LinphoneCore* lc, LinphoneProxyConfig *ob
 	obj->send_statistics = lc ? lp_config_get_default_int(lc->config, "proxy", "send_statistics", 0) : 0;
 	obj->contact_params = contact_params ? ms_strdup(contact_params) : NULL;
 	obj->contact_uri_params = contact_uri_params ? ms_strdup(contact_uri_params) : NULL;
+	obj->avpf_enabled = lc ? lp_config_get_default_int(lc->config, "proxy", "avpf", 0) : 0;
+	obj->avpf_rr_interval = lc ? lp_config_get_default_int(lc->config, "proxy", "avpf_rr_interval", 5) : 5;
 	obj->publish_expires=-1;
 }
 
@@ -151,7 +157,7 @@ void linphone_proxy_config_destroy(LinphoneProxyConfig *obj){
 	if (obj->contact_params) ms_free(obj->contact_params);
 	if (obj->contact_uri_params) ms_free(obj->contact_uri_params);
 	if (obj->saved_proxy!=NULL) linphone_address_destroy(obj->saved_proxy);
-	if (obj->saved_identity!=NULL) ms_free(obj->saved_identity);
+	if (obj->saved_identity!=NULL) linphone_address_destroy(obj->saved_identity);
 	ms_free(obj);
 }
 
@@ -1081,8 +1087,10 @@ void linphone_core_remove_proxy_config(LinphoneCore *lc, LinphoneProxyConfig *cf
 	lc->sip_conf.deleted_proxies=ms_list_append(lc->sip_conf.deleted_proxies,cfg);
 	cfg->deletion_date=ms_time(NULL);
 	if (cfg->state==LinphoneRegistrationOk){
-		/* this will unREGISTER */
+		/* unREGISTER */
 		linphone_proxy_config_edit(cfg);
+		linphone_proxy_config_enable_register(cfg,FALSE);
+		linphone_proxy_config_done(cfg);
 	}
 	if (lc->default_proxy==cfg){
 		lc->default_proxy=NULL;
@@ -1181,6 +1189,8 @@ void linphone_proxy_config_write_to_config_file(LpConfig *config, LinphoneProxyC
 	lp_config_set_int(config,key,"reg_expires",obj->expires);
 	lp_config_set_int(config,key,"reg_sendregister",obj->reg_sendregister);
 	lp_config_set_int(config,key,"publish",obj->publish);
+	lp_config_set_int(config, key, "avpf", obj->avpf_enabled);
+	lp_config_set_int(config, key, "avpf_rr_interval", obj->avpf_rr_interval);
 	lp_config_set_int(config,key,"dial_escape_plus",obj->dial_escape_plus);
 	lp_config_set_int(config,key,"send_statistics",obj->send_statistics);
 	lp_config_set_string(config,key,"dial_prefix",obj->dial_prefix);
@@ -1226,6 +1236,9 @@ LinphoneProxyConfig *linphone_proxy_config_new_from_config_file(LpConfig *config
 	linphone_proxy_config_enableregister(cfg,lp_config_get_int(config,key,"reg_sendregister",0));
 
 	linphone_proxy_config_enable_publish(cfg,lp_config_get_int(config,key,"publish",0));
+
+	linphone_proxy_config_enable_avpf(cfg, lp_config_get_int(config, key, "avpf", 0));
+	linphone_proxy_config_set_avpf_rr_interval(cfg, lp_config_get_int(config, key, "avpf_rr_interval", 5));
 
 	linphone_proxy_config_set_dial_escape_plus(cfg,lp_config_get_int(config,key,"dial_escape_plus",lp_config_get_default_int(config,"proxy","dial_escape_plus",0)));
 	linphone_proxy_config_set_dial_prefix(cfg,lp_config_get_string(config,key,"dial_prefix",lp_config_get_default_string(config,"proxy","dial_prefix",NULL)));
@@ -1538,4 +1551,21 @@ int linphone_proxy_config_get_publish_expires(const LinphoneProxyConfig *obj) {
 		return obj->publish_expires;
 	}
 
+}
+
+void linphone_proxy_config_enable_avpf(LinphoneProxyConfig *cfg, bool_t enable) {
+	cfg->avpf_enabled = enable;
+}
+
+bool_t linphone_proxy_config_is_avpf_enabled(LinphoneProxyConfig *cfg) {
+	return cfg->avpf_enabled;
+}
+
+void linphone_proxy_config_set_avpf_rr_interval(LinphoneProxyConfig *cfg, uint8_t interval) {
+	if (interval > 5) interval = 5;
+	cfg->avpf_rr_interval = interval;
+}
+
+uint8_t linphone_proxy_config_get_avpf_rr_interval(const LinphoneProxyConfig *cfg) {
+	return cfg->avpf_rr_interval;
 }

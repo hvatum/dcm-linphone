@@ -764,6 +764,7 @@ static void sip_config_read(LinphoneCore *lc)
 	linphone_core_enable_keep_alive(lc, (lc->sip_conf.keepalive_period > 0));
 	sal_use_one_matching_codec_policy(lc->sal,lp_config_get_int(lc->config,"sip","only_one_codec",0));
 	sal_use_dates(lc->sal,lp_config_get_int(lc->config,"sip","put_date",0));
+	sal_enable_sip_update_method(lc->sal,lp_config_get_int(lc->config,"sip","sip_update",1));
 }
 
 static void rtp_config_read(LinphoneCore *lc)
@@ -2835,6 +2836,7 @@ LinphoneCall * linphone_core_invite_address_with_params(LinphoneCore *lc, const 
 	char *real_url=NULL;
 	LinphoneCall *call;
 	bool_t defer = FALSE;
+	LinphoneCallParams *cp = linphone_call_params_copy(params);
 
 	linphone_core_preempt_sound_resources(lc);
 
@@ -2847,20 +2849,24 @@ LinphoneCall * linphone_core_invite_address_with_params(LinphoneCore *lc, const 
 	real_url=linphone_address_as_string(addr);
 	proxy=linphone_core_lookup_known_proxy(lc,addr);
 
-	if (proxy!=NULL)
+	if (proxy!=NULL) {
 		from=linphone_proxy_config_get_identity(proxy);
+		cp->avpf_enabled = linphone_proxy_config_is_avpf_enabled(proxy);
+		cp->avpf_rr_interval = linphone_proxy_config_get_avpf_rr_interval(proxy);
+	}
 
 	/* if no proxy or no identity defined for this proxy, default to primary contact*/
 	if (from==NULL) from=linphone_core_get_primary_contact(lc);
 
 	parsed_url2=linphone_address_new(from);
 
-	call=linphone_call_new_outgoing(lc,parsed_url2,linphone_address_clone(addr),params,proxy);
+	call=linphone_call_new_outgoing(lc,parsed_url2,linphone_address_clone(addr),cp,proxy);
 
 	if(linphone_core_add_call(lc,call)!= 0)
 	{
 		ms_warning("we had a problem in adding the call into the invite ... weird");
 		linphone_call_unref(call);
+		linphone_call_params_destroy(cp);
 		return NULL;
 	}
 
@@ -2905,6 +2911,7 @@ LinphoneCall * linphone_core_invite_address_with_params(LinphoneCore *lc, const 
 	if (defer==FALSE) linphone_core_start_invite(lc,call,NULL);
 
 	if (real_url!=NULL) ms_free(real_url);
+	linphone_call_params_destroy(cp);
 	return call;
 }
 
@@ -2976,21 +2983,8 @@ bool_t linphone_core_inc_invite_pending(LinphoneCore*lc){
 	return FALSE;
 }
 
-bool_t linphone_core_media_description_has_srtp(const SalMediaDescription *md){
-	int i;
-	if (md->n_active_streams==0) return FALSE;
-
-	for(i=0;i<md->n_active_streams;i++){
-		const SalStreamDescription *sd=&md->streams[i];
-		if (sd->proto!=SalProtoRtpSavp){
-			return FALSE;
-		}
-	}
-	return TRUE;
-}
-
 bool_t linphone_core_incompatible_security(LinphoneCore *lc, SalMediaDescription *md){
-	return linphone_core_is_media_encryption_mandatory(lc) && linphone_core_get_media_encryption(lc)==LinphoneMediaEncryptionSRTP && !linphone_core_media_description_has_srtp(md);
+	return linphone_core_is_media_encryption_mandatory(lc) && linphone_core_get_media_encryption(lc)==LinphoneMediaEncryptionSRTP && !media_description_has_srtp(md);
 }
 
 void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call){
@@ -3160,26 +3154,31 @@ int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call){
 **/
 int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const LinphoneCallParams *params){
 	int err=0;
-#ifdef VIDEO_ENABLED
+#if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
 	bool_t has_video = FALSE;
 #endif
+	
+	if (call->state!=LinphoneCallStreamsRunning){
+		ms_error("linphone_core_update_call() is not allowed in [%s] state",linphone_call_state_to_string(call->state));
+		return -1;
+	}
+	
 	if (params!=NULL){
 		linphone_call_set_state(call,LinphoneCallUpdating,"Updating call");
-#ifdef VIDEO_ENABLED
+#if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
 		has_video = call->params.has_video;
 
 		// Video removing
 		if((call->videostream != NULL) && !params->has_video) {
-#ifdef BUILD_UPNP
 			if(call->upnp_session != NULL) {
 				if (linphone_core_update_upnp(lc, call)<0) {
 					/* uPnP port mappings failed, proceed with the call anyway. */
 					linphone_call_delete_upnp_session(call);
 				}
 			}
-#endif //BUILD_UPNP
+
 		}
-#endif /* VIDEO_ENABLED */
+#endif /* defined(VIDEO_ENABLED) && defined(BUILD_UPNP) */
 
 		_linphone_call_params_copy(&call->params,params);
 		err=linphone_call_prepare_ice(call,FALSE);
@@ -3188,10 +3187,9 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 			return 0;
 		}
 
-#ifdef VIDEO_ENABLED
+#if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
 		// Video adding
 		if (!has_video && call->params.has_video) {
-#ifdef BUILD_UPNP
 			if(call->upnp_session != NULL) {
 				ms_message("Defer call update to add uPnP port mappings");
 				video_stream_prepare_video(call->videostream);
@@ -3202,9 +3200,8 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 					return err;
 				}
 			}
-#endif //BUILD_UPNP
 		}
-#endif //VIDEO_ENABLED
+#endif //defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
 		err = linphone_core_start_update_call(lc, call);
 	}else{
 #ifdef VIDEO_ENABLED
@@ -3432,7 +3429,14 @@ int linphone_core_accept_call_with_params(LinphoneCore *lc, LinphoneCall *call, 
 		_linphone_call_params_copy(&call->params,params);
 		// There might not be a md if the INVITE was lacking an SDP
 		// In this case we use the parameters as is.
-		if (md) call->params.has_video &= linphone_core_media_description_contains_video_stream(md);
+		if (md) {
+			call->params.has_video &= linphone_core_media_description_contains_video_stream(md);
+			/* Handle AVPF and SRTP. */
+			call->params.avpf_enabled = media_description_has_avpf(md);
+			if ((media_description_has_srtp(md) == TRUE) && (media_stream_srtp_supported() == TRUE)) {
+				call->params.media_encryption = LinphoneMediaEncryptionSRTP;
+			}
+		}
 		linphone_call_make_local_media_description(lc,call);
 		sal_call_set_local_media_description(call->op,call->localdesc);
 		sal_op_set_sent_custom_header(call->op,params->custom_headers);
@@ -5891,6 +5895,15 @@ static void linphone_core_uninit(LinphoneCore *lc)
 	}
 #endif //BUILD_UPNP
 
+	if (lc->chatrooms){
+		MSList *cr=ms_list_copy(lc->chatrooms);
+		MSList *elem;
+		for(elem=cr;elem!=NULL;elem=elem->next){
+			linphone_chat_room_destroy((LinphoneChatRoom*)elem->data);
+		}
+		ms_list_free(cr);
+	}
+
 	if (lp_config_needs_commit(lc->config)) lp_config_sync(lc->config);
 	lp_config_destroy(lc->config);
 	lc->config = NULL; /* Mark the config as NULL to block further calls */
@@ -6439,6 +6452,7 @@ void linphone_core_init_default_params(LinphoneCore*lc, LinphoneCallParams *para
 	params->media_encryption=linphone_core_get_media_encryption(lc);
 	params->in_conference=FALSE;
 	params->privacy=LinphonePrivacyDefault;
+	params->avpf_enabled=FALSE;
 }
 
 void linphone_core_set_device_identifier(LinphoneCore *lc,const char* device_id) {

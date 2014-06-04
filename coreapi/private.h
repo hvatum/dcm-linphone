@@ -95,10 +95,12 @@ struct _LinphoneCallParams{
 	char *session_name;
 	SalCustomHeader *custom_headers;
 	bool_t has_video;
+	bool_t avpf_enabled; /* RTCP feedback messages are enabled */
 	bool_t real_early_media; /*send real media even during early media (for outgoing calls)*/
 	bool_t in_conference; /*in conference mode */
 	bool_t low_bandwidth;
 	LinphonePrivacyMask privacy;
+	uint8_t avpf_rr_interval;
 };
 
 struct _LinphoneCallLog{
@@ -142,6 +144,7 @@ struct _LinphoneChatMessage {
 	LinphoneChatMessageStateChangedCb cb;
 	void* cb_ud;
 	void* message_userdata;
+	char* appdata;
 	char* external_body_url;
 	LinphoneAddress *from;
 	LinphoneAddress *to;
@@ -334,7 +337,6 @@ void linphone_call_stats_fill(LinphoneCallStats *stats, MediaStream *ms, OrtpEve
 void linphone_core_update_local_media_description_from_ice(SalMediaDescription *desc, IceSession *session);
 void linphone_core_update_ice_from_remote_media_description(LinphoneCall *call, const SalMediaDescription *md);
 bool_t linphone_core_media_description_contains_video_stream(const SalMediaDescription *md);
-bool_t linphone_core_media_description_has_srtp(const SalMediaDescription *md);
 
 void linphone_core_send_initial_subscribes(LinphoneCore *lc);
 void linphone_core_write_friends_config(LinphoneCore* lc);
@@ -389,6 +391,11 @@ bool_t linphone_core_rtcp_enabled(const LinphoneCore *lc);
 
 LinphoneCall * is_a_linphone_call(void *user_pointer);
 LinphoneProxyConfig * is_a_linphone_proxy_config(void *user_pointer);
+bool_t is_video_active(const SalStreamDescription *sd);
+bool_t stream_description_has_avpf(const SalStreamDescription *sd);
+bool_t stream_description_has_srtp(const SalStreamDescription *sd);
+bool_t media_description_has_avpf(const SalMediaDescription *md);
+bool_t media_description_has_srtp(const SalMediaDescription *md);
 
 void linphone_core_queue_task(LinphoneCore *lc, belle_sip_source_func_t task_fun, void *data, const char *task_description);
 
@@ -427,7 +434,9 @@ struct _LinphoneProxyConfig
 	bool_t dial_escape_plus;
 	bool_t send_publish;
 	bool_t send_statistics;
-	bool_t pad[3];
+	bool_t avpf_enabled;
+	bool_t pad;
+	uint8_t avpf_rr_interval;
 	void* user_data;
 	time_t deletion_date;
 	LinphonePrivacyMask privacy;
@@ -701,6 +710,7 @@ struct _LinphoneCore
 	char *chat_db_file;
 #ifdef MSG_STORAGE_ENABLED
 	sqlite3 *db;
+	bool_t debug_storage;
 #endif
 #ifdef BUILD_UPNP
 	UpnpContext *upnp;
@@ -741,6 +751,7 @@ int linphone_core_get_calls_nb(const LinphoneCore *lc);
 
 void linphone_core_set_state(LinphoneCore *lc, LinphoneGlobalState gstate, const char *message);
 void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *call);
+void linphone_call_increment_local_media_description(LinphoneCall *call);
 void linphone_core_update_streams(LinphoneCore *lc, LinphoneCall *call, SalMediaDescription *new_md);
 
 bool_t linphone_core_is_payload_type_usable_for_bandwidth(LinphoneCore *lc, const PayloadType *pt,  int bandwidth_limit);
@@ -813,8 +824,10 @@ sqlite3 * linphone_message_storage_init();
 void linphone_message_storage_init_chat_rooms(LinphoneCore *lc);
 #endif
 void linphone_chat_message_store_state(LinphoneChatMessage *msg);
+void linphone_chat_message_store_appdata(LinphoneChatMessage* msg);
 void linphone_core_message_storage_init(LinphoneCore *lc);
 void linphone_core_message_storage_close(LinphoneCore *lc);
+void linphone_core_message_storage_set_debug(LinphoneCore *lc, bool_t debug);
 
 void linphone_core_play_named_tone(LinphoneCore *lc, LinphoneToneID id);
 bool_t linphone_core_tone_indications_enabled(LinphoneCore*lc);
