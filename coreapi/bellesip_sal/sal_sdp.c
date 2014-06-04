@@ -566,7 +566,7 @@ static void sal_init_rtcp_xr_description(OrtpRtcpXrConfiguration *config) {
 
 static void sdp_parse_rtcp_xr_parameters(const belle_sdp_attribute_t *attribute, OrtpRtcpXrConfiguration *config) {
 	if (attribute != NULL) {
-		const belle_sdp_rtcp_xr_attribute_t *xr_attr;
+		belle_sdp_rtcp_xr_attribute_t *xr_attr;
 		const char *rcvr_rtt_mode;
 		sal_init_rtcp_xr_description(config);
 		xr_attr = BELLE_SDP_RTCP_XR_ATTRIBUTE(attribute);
