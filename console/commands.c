@@ -1219,9 +1219,12 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		while(*arg2 && isspace(*arg2)) ++arg2;
 	}
 
-	if (strcmp(arg1, "list")==0)
-	{
+        if (strcmp(arg1, "reload")==0)
+        {
 		linphone_core_reload_sound_devices(lc);
+        }
+        else if (strcmp(arg1, "list")==0)
+	{
 		int mode = 0;
 		if (arg2 && strcmp(arg2, "capture")==0)
 		{
@@ -1229,7 +1232,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		// Assuming from missing linphone_core_sound_device_can_playback
 		// that playback and ringing devices are the same. Seems logical though...
-		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ringer")==0))
+		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ring")==0))
 		{
 			mode = 2;
 		}
@@ -1243,8 +1246,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		return 1;
 	}
-
-	if (strcmp(arg1, "show")==0)
+        else if (strcmp(arg1, "show")==0)
 	{
 		linphonec_out("Ringer device: %s\n",
 			linphone_core_get_ringer_device(lc));
@@ -1254,8 +1256,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphone_core_get_capture_device(lc));
 		return 1;
 	}
-
-	if (strcmp(arg1, "use")==0 && arg2)
+        else if (strcmp(arg1, "use")==0 && arg2)
 	{
 		if (strcmp(arg2, "files")==0)
 		{
@@ -1264,25 +1265,19 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			return 1;
 		}
 
-		dev=linphone_core_get_sound_devices(lc);
 		index=atoi(arg2); /* FIXME: handle not-a-number */
-		for(i=0;dev[i]!=NULL;i++)
-		{
-			if (i!=index) continue;
-
-			linphone_core_set_ringer_device(lc,dev[i]);
-			linphone_core_set_playback_device(lc,dev[i]);
-			linphone_core_set_capture_device(lc,dev[i]);
-			linphonec_out("Using sound device %s\n",dev[i]);
-
-			linphone_call_restart_audio_stream(lc);
-
+		const char *devname=index_to_devname(lc,index);
+		if (devname!=NULL){
+			linphone_core_set_ringer_device(lc,devname);
+			linphone_core_set_playback_device(lc,devname);
+			linphone_core_set_capture_device(lc,devname);
+			linphonec_out("Using sound device %s\n",devname);
 			return 1;
 		}
 		linphonec_out("No such sound device\n");
 		return 1;
 	}
-	if (strcmp(arg1, "capture")==0)
+        else if (strcmp(arg1, "capture")==0)
 	{
 		const char *devname=linphone_core_get_capture_device(lc);
 		if (!arg2){
@@ -1293,7 +1288,6 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			devname=index_to_devname(lc,index);
 			if (devname!=NULL){
 				linphone_core_set_capture_device(lc,devname);
-				linphone_call_restart_audio_stream(lc);
 				linphonec_out("Using capture sound device %s\n",devname);
 				return 1;
 			}
@@ -1301,7 +1295,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		return 1;
 	}
-	if (strcmp(arg1, "playback")==0)
+        else if (strcmp(arg1, "playback")==0)
 	{
 		const char *devname=linphone_core_get_playback_device(lc);
 		if (!arg2){
@@ -1312,7 +1306,6 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			devname=index_to_devname(lc,index);
 			if (devname!=NULL){
 				linphone_core_set_playback_device(lc,devname);
-				linphone_call_restart_audio_stream(lc);
 				linphonec_out("Using playback sound device %s\n",devname);
 				return 1;
 			}
@@ -1320,7 +1313,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		return 1;
 	}
-	if (strcmp(arg1, "ring")==0)
+        else if (strcmp(arg1, "ring")==0)
 	{
 		const char *devname=linphone_core_get_ringer_device(lc);
 		if (!arg2){

@@ -362,15 +362,6 @@ LinphoneCallStatus linphone_call_log_get_status(LinphoneCallLog *cl){
 }
 
 /**
- * Restart audio streams using new devices.
- */
-void linphone_call_restart_audio_stream(LinphoneCore *lc) {
-	LinphoneCall *call = linphone_core_get_current_call(lc);
-	linphone_call_stop_audio_stream(call);
-	linphone_call_init_audio_stream(call);
-}
-
-/**
  * Returns the start date of the call, expressed as a POSIX time_t.
 **/
 time_t linphone_call_log_get_start_date(LinphoneCallLog *cl){
