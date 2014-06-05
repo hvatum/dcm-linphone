@@ -337,7 +337,7 @@ void linphone_call_increment_local_media_description(LinphoneCall *call){
 	md->session_ver++;
 }
 
-static SalMediaProto get_proto_from_call_params(LinphoneCallParams *params) {
+static SalMediaProto get_proto_from_call_params(const LinphoneCallParams *params) {
 	if ((params->media_encryption == LinphoneMediaEncryptionSRTP) && params->avpf_enabled) return SalProtoRtpSavpf;
 	if (params->media_encryption == LinphoneMediaEncryptionSRTP) return SalProtoRtpSavp;
 	if (params->avpf_enabled) return SalProtoRtpAvpf;
@@ -871,7 +871,7 @@ void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const
 
 		if (cstate==LinphoneCallEnd){
 			if (call->log->status == LinphoneCallSuccess)
-				linphone_reporting_publish(call);
+				linphone_reporting_publish_on_call_term(call);
 		}
 
 		if (cstate==LinphoneCallReleased){
@@ -1278,6 +1278,10 @@ MSVideoSize linphone_call_params_get_sent_video_size(const LinphoneCallParams *c
 
 MSVideoSize linphone_call_params_get_received_video_size(const LinphoneCallParams *cp) {
 	return cp->recv_vsize;
+}
+
+const char * linphone_call_params_get_rtp_profile(const LinphoneCallParams *cp) {
+	return sal_media_proto_to_string(get_proto_from_call_params(cp));
 }
 
 /**
@@ -1778,7 +1782,7 @@ static int get_ideal_audio_bw(LinphoneCall *call, const SalMediaDescription *md,
 	const LinphoneCallParams *params=&call->params;
 	bool_t will_use_video=linphone_core_media_description_contains_video_stream(md);
 	bool_t forced=FALSE;
-	
+
 	if (desc->bandwidth>0) remote_bw=desc->bandwidth;
 	else if (md->bandwidth>0) {
 		/*case where b=AS is given globally, not per stream*/
@@ -1790,7 +1794,7 @@ static int get_ideal_audio_bw(LinphoneCall *call, const SalMediaDescription *md,
 	}else upload_bw=total_upload_bw;
 	upload_bw=get_min_bandwidth(upload_bw,remote_bw);
 	if (!will_use_video || forced) return upload_bw;
-	
+
 	if (bandwidth_is_greater(upload_bw,512)){
 		upload_bw=100;
 	}else if (bandwidth_is_greater(upload_bw,256)){
@@ -1823,13 +1827,13 @@ static RtpProfile *make_profile(LinphoneCall *call, const SalMediaDescription *m
 	LinphoneCore *lc=call->core;
 	int up_ptime=0;
 	const LinphoneCallParams *params=&call->params;
-	
+
 	*used_pt=-1;
 	if (desc->type==SalAudio)
 		bw=get_ideal_audio_bw(call,md,desc);
 	else if (desc->type==SalVideo)
 		bw=get_video_bw(call,md,desc);
-	
+
 	for(elem=desc->payloads;elem!=NULL;elem=elem->next){
 		PayloadType *pt=(PayloadType*)elem->data;
 		int number;
@@ -2293,7 +2297,7 @@ static void linphone_call_log_fill_stats(LinphoneCallLog *log, MediaStream *st){
 
 void linphone_call_stop_audio_stream(LinphoneCall *call) {
 	if (call != NULL && call->audiostream!=NULL) {
-		linphone_reporting_update(call, LINPHONE_CALL_STATS_AUDIO);
+		linphone_reporting_update_media_info(call, LINPHONE_CALL_STATS_AUDIO);
 		media_stream_reclaim_sessions(&call->audiostream->ms,&call->sessions[0]);
 		rtp_session_unregister_event_queue(call->audiostream->ms.sessions.rtp_session,call->audiostream_app_evq);
 		ortp_ev_queue_flush(call->audiostream_app_evq);
@@ -2322,7 +2326,7 @@ void linphone_call_stop_audio_stream(LinphoneCall *call) {
 void linphone_call_stop_video_stream(LinphoneCall *call) {
 #ifdef VIDEO_ENABLED
 	if (call->videostream!=NULL){
-		linphone_reporting_update(call, LINPHONE_CALL_STATS_VIDEO);
+		linphone_reporting_update_media_info(call, LINPHONE_CALL_STATS_VIDEO);
 		media_stream_reclaim_sessions(&call->videostream->ms,&call->sessions[1]);
 		rtp_session_unregister_event_queue(call->videostream->ms.sessions.rtp_session,call->videostream_app_evq);
 		ortp_ev_queue_flush(call->videostream_app_evq);
@@ -2712,7 +2716,7 @@ static void linphone_core_disconnected(LinphoneCore *lc, LinphoneCall *call){
 	from = linphone_call_get_remote_address_as_string(call);
 	snprintf(temp,sizeof(temp)-1,"Remote end %s seems to have disconnected, the call is going to be closed.",from ? from : "");
 	if (from) ms_free(from);
-	
+
 	ms_message("On call [%p]: %s",call,temp);
 	if (lc->vtable.display_warning!=NULL)
 		lc->vtable.display_warning(lc,temp);
@@ -2836,7 +2840,7 @@ void linphone_call_notify_stats_updated(LinphoneCall *call, int stream_index){
 	LinphoneCallStats *stats=&call->stats[stream_index];
 	LinphoneCore *lc=call->core;
 	if (stats->updated){
-		linphone_reporting_call_stats_updated(call, stream_index);
+		linphone_reporting_on_rtcp_received(call, stream_index);
 		if (lc->vtable.call_stats_updated)
 			lc->vtable.call_stats_updated(lc, call, stats);
 		stats->updated = 0;
