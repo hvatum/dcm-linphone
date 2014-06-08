@@ -819,7 +819,7 @@ LINPHONE_PUBLIC	void linphone_proxy_config_enable_publish(LinphoneProxyConfig *o
 /**
  * Set the publish expiration time in second.
  * @param obj proxy config
- * @param exires in second
+ * @param expires in second
  * */
 
 LINPHONE_PUBLIC	void linphone_proxy_config_set_publish_expires(LinphoneProxyConfig *obj, int expires);
@@ -834,16 +834,54 @@ LINPHONE_PUBLIC	int linphone_proxy_config_get_publish_expires(const LinphoneProx
 LINPHONE_PUBLIC	void linphone_proxy_config_set_dial_escape_plus(LinphoneProxyConfig *cfg, bool_t val);
 LINPHONE_PUBLIC	void linphone_proxy_config_set_dial_prefix(LinphoneProxyConfig *cfg, const char *prefix);
 
-/**
- * Indicates  either or not, quality statistics during call should be stored and sent to a collector at termination.
- * @param cfg #LinphoneProxyConfig object
- * @param val if true, quality statistics publish will be stored and sent to the collector
- *
+ /**
+ * Indicates whether quality statistics during call should be stored and sent to a collector according to RFC 6035.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @param[in] enable True to sotre quality statistics and sent them to the collector, false to disable it.
  */
-LINPHONE_PUBLIC	void linphone_proxy_config_enable_statistics(LinphoneProxyConfig *cfg, bool_t val);
-LINPHONE_PUBLIC	bool_t linphone_proxy_config_send_statistics_enabled(LinphoneProxyConfig *cfg);
-LINPHONE_PUBLIC	void linphone_proxy_config_set_statistics_collector(LinphoneProxyConfig *cfg, const char *collector);
-LINPHONE_PUBLIC	const char *linphone_proxy_config_get_statistics_collector(const LinphoneProxyConfig *obj);
+LINPHONE_PUBLIC	void linphone_proxy_config_enable_quality_reporting(LinphoneProxyConfig *cfg, bool_t enable);
+
+/**
+ * Indicates whether quality statistics during call should be stored and sent to a collector according to RFC 6035.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @return True if quality repotring is enabled, false otherwise.
+ */
+LINPHONE_PUBLIC	bool_t linphone_proxy_config_quality_reporting_enabled(LinphoneProxyConfig *cfg);
+
+ /**
+ * Set the SIP address of the collector end-point when using quality reporting. This SIP address
+ * should be used on server-side to process packets directly then discard packets. Collector address
+ * should be a non existing account and should not received any packets.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @param[in] collector SIP address of the collector end-point.
+ */
+LINPHONE_PUBLIC	void linphone_proxy_config_set_quality_reporting_collector(LinphoneProxyConfig *cfg, const char *collector);
+
+ /**
+ * Get the SIP address of the collector end-point when using quality reporting. This SIP address
+ * should be used on server-side to process packets directly then discard packets. Collector address
+ * should be a non existing account and should not received any packets.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @return The SIP address of the collector end-point.
+ */
+LINPHONE_PUBLIC	const char *linphone_proxy_config_get_quality_reporting_collector(const LinphoneProxyConfig *cfg);
+
+/**
+ * Set the interval between 2 interval reports sending when using quality reporting. If call exceed interval size, an
+ * interval report will be sent to the collector. On call termination, a session report will be sent
+ * for the remaining period. Value must be 0 (disabled) or positive.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @param[in] interval The interval in seconds, 0 means interval reports are disabled.
+ */
+void linphone_proxy_config_set_quality_reporting_interval(LinphoneProxyConfig *cfg, uint8_t interval);
+
+/**
+ * Get the interval between interval reports when using quality reporting.
+ * @param[in] cfg #LinphoneProxyConfig object
+ * @return The interval in seconds, 0 means interval reports are disabled.
+ */
+
+int linphone_proxy_config_get_quality_reporting_interval(LinphoneProxyConfig *cfg);
 
 /**
  * Get the registration state of the given proxy config.
@@ -926,7 +964,7 @@ LINPHONE_PUBLIC	void * linphone_proxy_config_get_user_data(LinphoneProxyConfig *
 /**
  * Set default privacy policy for all calls routed through this proxy.
  * @param params to be modified
- * @param LinphonePrivacy to configure privacy
+ * @param privacy LinphonePrivacy to configure privacy
  * */
 LINPHONE_PUBLIC void linphone_proxy_config_set_privacy(LinphoneProxyConfig *params, LinphonePrivacyMask privacy);
 /**
@@ -1543,7 +1581,7 @@ LINPHONE_PUBLIC	int linphone_core_accept_call_update(LinphoneCore *lc, LinphoneC
 /**
  * @ingroup media_parameters
  * Get default call parameters reflecting current linphone core configuration
- * @param LinphoneCore object
+ * @param lc LinphoneCore object
  * @return  LinphoneCallParams
  */
 LINPHONE_PUBLIC	LinphoneCallParams *linphone_core_create_default_call_parameters(LinphoneCore *lc);
@@ -1985,7 +2023,7 @@ LINPHONE_PUBLIC	void linphone_core_mute_mic(LinphoneCore *lc, bool_t muted);
 
 /**
  * Get mic state.
- * @deprecated Use #linphone_core_is_mic_enabled instead
+ * @deprecated Use #linphone_core_mic_enabled instead
 **/
 LINPHONE_PUBLIC	bool_t linphone_core_is_mic_muted(LinphoneCore *lc);
 
