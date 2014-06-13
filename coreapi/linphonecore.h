@@ -133,9 +133,11 @@ typedef struct belle_sip_dict LinphoneDictionary;
 struct _LinphoneContent{
 	char *type; /**<mime type for the data, for example "application"*/
 	char *subtype; /**<mime subtype for the data, for example "html"*/
-	void *data; /**<the actual data buffer, usually a string */
-	size_t size; /**<the size of the data buffer, excluding null character despite null character is always set for convenience.*/
+	void *data; /**<the actual data buffer, usually a string. Null when provided by callbacks #LinphoneCoreFileTransferSendCb or #LinphoneCoreFileTransferRecvCb*/
+	size_t size; /**<the size of the data buffer, excluding null character despite null character is always set for convenience.
+				When provided by callback #LinphoneCoreFileTransferSendCb or #LinphoneCoreFileTransferRecvCb, it states the total number of bytes of the transfered file*/
 	char *encoding; /**<The encoding of the data buffer, for example "gzip"*/
+	char *name; /**< used by RCS File transfer messages to store the original filename of the file to be downloaded from server */
 };
 
 /**
@@ -592,7 +594,7 @@ typedef enum _LinphoneUpnpState LinphoneUpnpState;
 /**
  * The LinphoneCallStats objects carries various statistic informations regarding quality of audio or video streams.
  *
- * To receive these informations periodically and as soon as they are computed, the application is invited to place a #CallStatsUpdated callback in the LinphoneCoreVTable structure
+ * To receive these informations periodically and as soon as they are computed, the application is invited to place a #LinphoneCoreCallStatsUpdatedCb callback in the LinphoneCoreVTable structure
  * it passes for instanciating the LinphoneCore object (see linphone_core_new() ).
  *
  * At any time, the application can access last computed statistics using linphone_call_get_audio_stats() or linphone_call_get_video_stats().
@@ -602,7 +604,7 @@ typedef struct _LinphoneCallStats LinphoneCallStats;
 /**
  * The LinphoneCallStats objects carries various statistic informations regarding quality of audio or video streams.
  *
- * To receive these informations periodically and as soon as they are computed, the application is invited to place a #CallStatsUpdated callback in the LinphoneCoreVTable structure
+ * To receive these informations periodically and as soon as they are computed, the application is invited to place a #LinphoneCoreCallStatsUpdatedCb callback in the LinphoneCoreVTable structure
  * it passes for instanciating the LinphoneCore object (see linphone_core_new() ).
  *
  * At any time, the application can access last computed statistics using linphone_call_get_audio_stats() or linphone_call_get_video_stats().
@@ -963,16 +965,28 @@ LINPHONE_PUBLIC	void * linphone_proxy_config_get_user_data(LinphoneProxyConfig *
 
 /**
  * Set default privacy policy for all calls routed through this proxy.
- * @param params to be modified
+ * @param cfg #LinphoneProxyConfig object to be modified
  * @param privacy LinphonePrivacy to configure privacy
  * */
-LINPHONE_PUBLIC void linphone_proxy_config_set_privacy(LinphoneProxyConfig *params, LinphonePrivacyMask privacy);
+LINPHONE_PUBLIC void linphone_proxy_config_set_privacy(LinphoneProxyConfig *cfg, LinphonePrivacyMask privacy);
 /**
  * Get default privacy policy for all calls routed through this proxy.
- * @param params object
+ * @param cfg #LinphoneProxyConfig object
  * @return Privacy mode
  * */
-LINPHONE_PUBLIC LinphonePrivacyMask linphone_proxy_config_get_privacy(const LinphoneProxyConfig *params);
+LINPHONE_PUBLIC LinphonePrivacyMask linphone_proxy_config_get_privacy(const LinphoneProxyConfig *cfg);
+/**
+ * Set the http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml
+ * @param cfg #LinphoneProxyConfig object to be modified
+ * @param server_url URL of the file server like https://file.linphone.org/upload.php
+ * */
+LINPHONE_PUBLIC void linphone_proxy_config_set_file_transfer_server(LinphoneProxyConfig *cfg, const char * server_url);
+/**
+ * Get the http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml
+ * @param cfg #LinphoneProxyConfig object
+ * @return URL of the file server like https://file.linphone.org/upload.php
+ * */
+LINPHONE_PUBLIC const char* linphone_proxy_config_get_file_transfer_server(const LinphoneProxyConfig *cfg);
 
 /**
  * Indicates whether AVPF/SAVPF must be used for calls using this proxy config.
@@ -1134,6 +1148,15 @@ LINPHONE_PUBLIC bool_t linphone_core_chat_enabled(const LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_chat_room_destroy(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_message(LinphoneChatRoom *cr,const char* message);
 LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_message_2(LinphoneChatRoom *cr, const char* message, const char* external_body_url, LinphoneChatMessageState state, time_t time, bool_t is_read, bool_t is_incoming);
+
+/**
+ * Create a message attached to a dedicated chat room with a particular content. Use #linphone_chat_room_file_transfer_send to initiate the transfer
+ * @param[in] cr the chat room.
+ * @param[in] initial_content #LinphoneContent initial content. #LinphoneCoreVTable.file_transfer_send is invoked later to notify file transfer progress and collect next chunk of the message if #LinphoneContentSourceType.src_type is set to LINPHONE_CONTENT_SOURCE_CHUNKED_BUFFER.
+ * @return a new #LinphoneChatMessage
+ */
+LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_file_transfer_message(LinphoneChatRoom *cr, LinphoneContent* initial_content);
+
 LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_room_get_peer_address(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC	void linphone_chat_room_send_message(LinphoneChatRoom *cr, const char *msg);
 LINPHONE_PUBLIC	void linphone_chat_room_send_message2(LinphoneChatRoom *cr, LinphoneChatMessage* msg,LinphoneChatMessageStateChangedCb status_cb,void* ud);
@@ -1158,6 +1181,7 @@ LINPHONE_PUBLIC bool_t linphone_chat_room_is_remote_composing(const LinphoneChat
 
 LINPHONE_PUBLIC int linphone_chat_room_get_unread_messages_count(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_lc(LinphoneChatRoom *cr);
+LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_core(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC	void linphone_chat_room_set_user_data(LinphoneChatRoom *cr, void * ud);
 LINPHONE_PUBLIC	void * linphone_chat_room_get_user_data(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC MSList* linphone_core_get_chat_rooms(LinphoneCore *lc);
@@ -1175,6 +1199,8 @@ LINPHONE_PUBLIC void linphone_chat_message_set_to(LinphoneChatMessage* message, 
 LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_message_get_to(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_external_body_url(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	void linphone_chat_message_set_external_body_url(LinphoneChatMessage* message,const char* url);
+LINPHONE_PUBLIC	const LinphoneContent* linphone_chat_message_get_file_transfer_information(const LinphoneChatMessage* message);
+LINPHONE_PUBLIC void linphone_chat_message_start_file_download(const LinphoneChatMessage*message);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_appdata(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	void linphone_chat_message_set_appdata(LinphoneChatMessage* message, const char* data);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_text(const LinphoneChatMessage* message);
@@ -1298,7 +1324,7 @@ typedef void (*LinphoneCoreCallLogUpdatedCb)(LinphoneCore *lc, LinphoneCallLog *
 
 /**
  * Callback prototype
- * @deprecated use #LinphoneMessageReceived instead.
+ * @deprecated use #LinphoneCoreMessageReceivedCb instead.
  *
  * @param lc #LinphoneCore object
  * @param room #LinphoneChatRoom involved in this conversation. Can be be created by the framework in case \link #LinphoneAddress the from \endlink is not present in any chat room.
@@ -1315,6 +1341,43 @@ typedef void (*LinphoneCoreTextMessageReceivedCb)(LinphoneCore *lc, LinphoneChat
  * @param LinphoneChatMessage incoming message
  */
 typedef void (*LinphoneCoreMessageReceivedCb)(LinphoneCore *lc, LinphoneChatRoom *room, LinphoneChatMessage *message);
+
+/**
+ * File transfer receive callback prototype. This function is called by the core upon an incoming File transfer is started. This function may be call several time for the same file in case of large file.
+ *
+ *
+ * @param lc #LinphoneCore object
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent incoming content information
+ * @param buff pointer to the received data
+ * @param size number of bytes to be read from buff. 0 means end of file.
+ *
+ */
+typedef void (*LinphoneCoreFileTransferRecvCb)(LinphoneCore *lc, LinphoneChatMessage *message, const LinphoneContent* content, const char* buff, size_t size);
+
+/**
+ * File transfer send callback prototype. This function is called by the core upon an outgoing File transfer is started. This function is called until size is set to 0.
+ * <br> a #LinphoneContent with a size equal zero
+ *
+ * @param lc #LinphoneCore object
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent outgoing content
+ * @param buff pointer to the buffer where data chunk shall be written by the app
+ * @param size as input value, it represents the number of bytes expected by the framework. As output value, it means the number of bytes wrote by the application in the buffer. 0 means end of file.
+ *
+ */
+typedef void (*LinphoneCoreFileTransferSendCb)(LinphoneCore *lc, LinphoneChatMessage *message,  const LinphoneContent* content, char* buff, size_t* size);
+
+/**
+ * File transfer progress indication callback prototype.
+ *
+ * @param lc #LinphoneCore object
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent incoming content information
+ * @param progress number of bytes sent/received from the begening of the transfer.
+ *
+ */
+typedef void (*LinphoneCoreFileTransferProgressIndicationCb)(LinphoneCore *lc, LinphoneChatMessage *message, const LinphoneContent* content, size_t progress);
 
 /**
  * Is composing notification callback prototype.
@@ -1389,7 +1452,7 @@ typedef struct _LinphoneCoreVTable{
 	LinphoneCoreNewSubscriptionRequestedCb new_subscription_requested; /**< Notify about pending presence subscription request */
 	LinphoneCoreAuthInfoRequestedCb auth_info_requested; /**< Ask the application some authentication information */
 	LinphoneCoreCallLogUpdatedCb call_log_updated; /**< Notifies that call log list has been updated */
-	LinphoneCoreMessageReceivedCb message_received; /** a message is received, can be text or external body*/
+	LinphoneCoreMessageReceivedCb message_received; /**< a message is received, can be text or external body*/
 	LinphoneCoreIsComposingReceivedCb is_composing_received; /**< An is-composing notification has been received */
 	LinphoneCoreDtmfReceivedCb dtmf_received; /**< A dtmf has been received received */
 	LinphoneCoreReferReceivedCb refer_received; /**< An out of call refer was received */
@@ -1408,6 +1471,9 @@ typedef struct _LinphoneCoreVTable{
 	DisplayUrlCb display_url; /**< @deprecated */
 	ShowInterfaceCb show; /**< @deprecated Notifies the application that it should show up*/
 	LinphoneCoreTextMessageReceivedCb text_received; /** @deprecated, use #message_received instead <br> A text message has been received */
+	LinphoneCoreFileTransferRecvCb file_transfer_received; /** Callback to store file received attached to a #LinphoneChatMessage */
+	LinphoneCoreFileTransferSendCb file_transfer_send; /** Callback to collect file chunk to be sent for a #LinphoneChatMessage */
+	LinphoneCoreFileTransferProgressIndicationCb file_transfer_progress_indication; /**Callback to indicate file transfer progress*/
 } LinphoneCoreVTable;
 
 /**
@@ -1750,6 +1816,7 @@ LINPHONE_PUBLIC	int linphone_core_get_default_proxy(LinphoneCore *lc, LinphonePr
  * @param[in] passwd String containing the password of the authentication credentials (optional, either passwd or ha1 must be set)
  * @param[in] ha1 String containing a ha1 hash of the password (optional, either passwd or ha1 must be set)
  * @param[in] realm String used to discriminate different SIP authentication domains (optional)
+ * @param[in] domain String containing the SIP domain for which this authentication information is valid, if it has to be restricted for a single SIP domain.
  * @return #LinphoneAuthInfo with default values set
  * @ingroup authentication
  */
@@ -2527,6 +2594,14 @@ typedef enum _LinphoneToneID LinphoneToneID;
 LINPHONE_PUBLIC void linphone_core_set_call_error_tone(LinphoneCore *lc, LinphoneReason reason, const char *audiofile);
 
 LINPHONE_PUBLIC void linphone_core_set_tone(LinphoneCore *lc, LinphoneToneID id, const char *audiofile);
+
+/**
+ * Globaly set an http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml. This value can also be set for a dedicated account using #linphone_proxy_config_set_file_transfer_server
+ * @param[in] core #LinphoneCore to be modified
+ * @param[in] server_url URL of the file server like https://file.linphone.org/upload.php
+ * */
+LINPHONE_PUBLIC void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url);
+
 #ifdef __cplusplus
 }
 #endif

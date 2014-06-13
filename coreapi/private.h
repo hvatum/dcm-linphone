@@ -103,6 +103,11 @@ struct _LinphoneCallParams{
 	uint8_t avpf_rr_interval;
 };
 
+struct _LinphoneQualityReporting{
+	reporting_session_report_t * reports[2]; /**Store information on audio and video media streams (RFC 6035) */
+	bool_t was_video_running; /*Keep video state since last check in order to detect its (de)activation*/
+};
+
 struct _LinphoneCallLog{
 	struct _LinphoneCore *lc;
 	LinphoneCallDir dir; /**< The direction of the call*/
@@ -119,9 +124,11 @@ struct _LinphoneCallLog{
 	time_t start_date_time; /**Start date of the call in seconds as expressed in a time_t */
 	char* call_id; /**unique id of a call*/
 
-	reporting_session_report_t * reports[2]; /**<Quality statistics of the call (rfc6035) */
+	struct _LinphoneQualityReporting reporting;
+
 	bool_t video_enabled;
 };
+
 
 typedef struct _CallCallbackObj
 {
@@ -154,6 +161,8 @@ struct _LinphoneChatMessage {
 	bool_t is_read;
 	unsigned int storage_id;
 	SalOp *op;
+	LinphoneContent *file_transfer_information;
+	char *content_type;
 };
 
 BELLE_SIP_DECLARE_VPTR(LinphoneChatMessage);
@@ -391,11 +400,6 @@ bool_t linphone_core_rtcp_enabled(const LinphoneCore *lc);
 
 LinphoneCall * is_a_linphone_call(void *user_pointer);
 LinphoneProxyConfig * is_a_linphone_proxy_config(void *user_pointer);
-bool_t is_video_active(const SalStreamDescription *sd);
-bool_t stream_description_has_avpf(const SalStreamDescription *sd);
-bool_t stream_description_has_srtp(const SalStreamDescription *sd);
-bool_t media_description_has_avpf(const SalMediaDescription *md);
-bool_t media_description_has_srtp(const SalMediaDescription *md);
 
 void linphone_core_queue_task(LinphoneCore *lc, belle_sip_source_func_t task_fun, void *data, const char *task_description);
 
@@ -720,6 +724,7 @@ struct _LinphoneCore
 	belle_tls_verify_policy_t *http_verify_policy;
 	MSList *tones;
 	LinphoneReason chat_deny_code;
+	char *file_transfer_server;
 };
 
 
@@ -838,6 +843,7 @@ void linphone_call_create_op(LinphoneCall *call);
 int linphone_call_prepare_ice(LinphoneCall *call, bool_t incoming_offer);
 void linphone_core_notify_info_message(LinphoneCore* lc,SalOp *op, const SalBody *body);
 void linphone_content_uninit(LinphoneContent * obj);
+void linphone_content_copy(LinphoneContent *obj, const LinphoneContent *ref);
 LinphoneContent *linphone_content_copy_from_sal_body(LinphoneContent *obj, const SalBody *ref);
 SalBody *sal_body_from_content(SalBody *body, const LinphoneContent *lc);
 SalReason linphone_reason_to_sal(LinphoneReason reason);

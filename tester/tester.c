@@ -199,6 +199,9 @@ LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_f
 	mgr->v_table.call_state_changed=call_state_changed;
 	mgr->v_table.text_received=text_message_received;
 	mgr->v_table.message_received=message_received;
+	mgr->v_table.file_transfer_received=file_transfer_received;
+	mgr->v_table.file_transfer_send=file_transfer_send;
+	mgr->v_table.file_transfer_progress_indication=file_transfer_progress_indication;
 	mgr->v_table.is_composing_received=is_composing_received;
 	mgr->v_table.new_subscription_requested=new_subscription_requested;
 	mgr->v_table.notify_presence_received=notify_presence_received;
@@ -288,6 +291,13 @@ int liblinphone_tester_test_suite_index(const char *suite_name) {
 	return -1;
 }
 
+void liblinphone_tester_list_suites() {
+	int j;
+	for(j=0;j<liblinphone_tester_nb_test_suites();j++) {
+		fprintf(stdout, "%s\n", liblinphone_tester_test_suite_name(j));
+	}
+}
+
 void liblinphone_tester_list_suite_tests(const char *suite_name) {
 	int j;
 	for( j = 0; j < liblinphone_tester_nb_tests(suite_name); j++) {
@@ -355,6 +365,7 @@ void liblinphone_tester_init(void) {
 	add_test_suite(&event_test_suite);
 	add_test_suite(&flexisip_test_suite);
 	add_test_suite(&remote_provisioning_test_suite);
+	add_test_suite(&quality_reporting_test_suite);
 }
 
 void liblinphone_tester_uninit(void) {
@@ -379,13 +390,25 @@ int liblinphone_tester_run_tests(const char *suite_name, const char *test_name) 
 	if (suite_name){
 		CU_pSuite suite;
 		CU_basic_set_mode(CU_BRM_VERBOSE);
-		suite=CU_get_suite_by_name(suite_name, CU_get_registry());
-		if (test_name) {
+		suite=CU_get_suite(suite_name);
+		if (!suite) {
+			ms_error("Could not find suite '%s'. Available suites are:", suite_name);
+			liblinphone_tester_list_suites();
+			return -1;
+		} else if (test_name) {
 			CU_pTest test=CU_get_test_by_name(test_name, suite);
-			CU_ErrorCode err= CU_basic_run_test(suite, test);
-			if (err != CUE_SUCCESS) ms_error("CU_basic_run_test error %d", err);
-		} else
+			if (!test) {
+				ms_error("Could not find test '%s' in suite '%s'. Available tests are:", test_name, suite_name);
+				// do not use suite_name here, since this method is case sentisitive
+				liblinphone_tester_list_suite_tests(suite->pName);
+				return -2;
+			} else {
+				CU_ErrorCode err= CU_basic_run_test(suite, test);
+				if (err != CUE_SUCCESS) ms_error("CU_basic_run_test error %d", err);
+			}
+		} else {
 			CU_basic_run_suite(suite);
+		}
 	} else
 	{
 #if HAVE_CU_CURSES

@@ -31,23 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /***************************************************************************
  *  				TODO / REMINDER LIST
  ***************************************************************************
-	For codecs that are able to change sample rates, the lowest and highest sample rates MUST be reported (e.g., 8000;16000).
-
-	rlq value: need algo to compute it
-
-	3.4 overload avoidance?
-	   a.  Send only one report at the end of each call. (audio | video?)
-	   b.  Use interval reports only on "problem" calls that are being closely monitored.
-
-	move "on_action_suggested" stuff in init
-
-	- The Session report when
-		codec change
-		session fork
-		video enable/disable <-- what happens if doing stop/resume?
-
-
-	if BYE and continue received packet drop them
+	- move qos data at report's end? <-- unit test recup publish body
  ***************************************************************************
  *  				END OF TODO / REMINDER LIST
  ****************************************************************************/
@@ -85,7 +69,7 @@ static void append_to_buffer_valist(char **buff, size_t *buff_size, size_t *offs
 	/*if we are out of memory, we add some size to buffer*/
 	if (ret == BELLE_SIP_BUFFER_OVERFLOW) {
 		/*some compilers complain that size_t cannot be formatted as unsigned long, hence forcing cast*/
-		ms_warning("Buffer was too small to contain the whole report - increasing its size from %lu to %lu",
+		ms_warning("QualityReporting: Buffer was too small to contain the whole report - increasing its size from %lu to %lu",
 			(unsigned long)*buff_size, (unsigned long)*buff_size + 2048);
 		*buff_size += 2048;
 		*buff = (char *) ms_realloc(*buff, *buff_size);
@@ -109,13 +93,12 @@ static void reset_avg_metrics(reporting_session_report_t * report){
 	reporting_content_metrics_t * metrics[2] = {&report->local_metrics, &report->remote_metrics};
 
 	for (i = 0; i < 2; i++) {
+		metrics[i]->rtcp_sr_count = 0;
 		metrics[i]->rtcp_xr_count = 0;
 		metrics[i]->jitter_buffer.nominal = 0;
 		metrics[i]->jitter_buffer.max = 0;
 
 		metrics[i]->delay.round_trip_delay = 0;
-
-		/*metrics[i]->delay.symm_one_way_delay = 0;*/
 	}
 	report->last_report_date = ms_time(NULL);
 }
@@ -158,17 +141,14 @@ static uint8_t are_metrics_filled(const reporting_content_metrics_t rm) {
 	if (rm.signal.level != 127) ret|=METRICS_SIGNAL;
 	if (rm.signal.noise_level != 127) ret|=METRICS_SIGNAL;
 
-	if (rm.qos_analyzer.input!=NULL) ret|=METRICS_ADAPTIVE_ALGORITHM;
-	if (rm.qos_analyzer.output!=NULL) ret|=METRICS_ADAPTIVE_ALGORITHM;
-
 	if (rm.rtcp_xr_count>0){
 		IF_NUM_IN_RANGE(rm.jitter_buffer.nominal/rm.rtcp_xr_count, 0, 65535, ret|=METRICS_JITTER_BUFFER);
 		IF_NUM_IN_RANGE(rm.jitter_buffer.max/rm.rtcp_xr_count, 0, 65535, ret|=METRICS_JITTER_BUFFER);
-		IF_NUM_IN_RANGE(rm.delay.round_trip_delay, 0, 65535, ret|=METRICS_DELAY);
 		IF_NUM_IN_RANGE(rm.quality_estimates.moslq/rm.rtcp_xr_count, 1, 5, ret|=METRICS_QUALITY_ESTIMATES);
 		IF_NUM_IN_RANGE(rm.quality_estimates.moscq/rm.rtcp_xr_count, 1, 5, ret|=METRICS_QUALITY_ESTIMATES);
-		IF_NUM_IN_RANGE(rm.quality_estimates.rlq/rm.rtcp_xr_count, 1, 120, ret|=METRICS_QUALITY_ESTIMATES);
-		IF_NUM_IN_RANGE(rm.quality_estimates.rcq/rm.rtcp_xr_count, 1, 120, ret|=METRICS_QUALITY_ESTIMATES);
+	}
+	if (rm.rtcp_sr_count+rm.rtcp_xr_count>0){
+		IF_NUM_IN_RANGE(rm.delay.round_trip_delay/(rm.rtcp_sr_count+rm.rtcp_xr_count), 0, 65535, ret|=METRICS_DELAY);
 	}
 
 	return ret;
@@ -185,7 +165,7 @@ static bool_t media_report_enabled(LinphoneCall * call, int stats_type){
 	if (stats_type == LINPHONE_CALL_STATS_VIDEO && !linphone_call_params_video_enabled(linphone_call_get_current_params(call)))
 		return FALSE;
 
-	return (call->log->reports[stats_type] != NULL);
+	return (call->log->reporting.reports[stats_type] != NULL);
 }
 
 static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * offset, const reporting_content_metrics_t rm) {
@@ -213,18 +193,13 @@ static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * off
 			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " PD=%s", rm.session_description.payload_desc);
 			APPEND_IF(buffer, size, offset, " SR=%d", rm.session_description.sample_rate, rm.session_description.sample_rate != -1);
 			APPEND_IF(buffer, size, offset, " FD=%d", rm.session_description.frame_duration, rm.session_description.frame_duration != -1);
-			/*append_to_buffer(buffer, size, offset, " FO=%d", rm.session_description.frame_ocets);*/
-			/*append_to_buffer(buffer, size, offset, " FPP=%d", rm.session_description.frames_per_sec);*/
-			/*append_to_buffer(buffer, size, offset, " PPS=%d", rm.session_description.packets_per_sec);*/
 			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " FMTP=\"%s\"", rm.session_description.fmtp);
 			APPEND_IF(buffer, size, offset, " PLC=%d", rm.session_description.packet_loss_concealment, rm.session_description.packet_loss_concealment != -1);
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " SSUP=%s", rm.session_description.silence_suppression_state);*/
 	}
 
 	if ((available_metrics & METRICS_JITTER_BUFFER) != 0){
 		append_to_buffer(buffer, size, offset, "\r\nJitterBuffer:");
 			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " JBA=%d", rm.jitter_buffer.adaptive, 0, 3);
-			/*APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " JBR=%d", rm.jitter_buffer.rate, 0, 15);*/
 			if (rm.rtcp_xr_count){
 				APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " JBN=%d", rm.jitter_buffer.nominal/rm.rtcp_xr_count, 0, 65535);
 				APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " JBM=%d", rm.jitter_buffer.max/rm.rtcp_xr_count, 0, 65535);
@@ -249,12 +224,10 @@ static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * off
 
 	if ((available_metrics & METRICS_DELAY) != 0){
 		append_to_buffer(buffer, size, offset, "\r\nDelay:");
-			if (rm.rtcp_xr_count){
-				APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " RTD=%d", rm.delay.round_trip_delay/rm.rtcp_xr_count, 0, 65535);
+			if (rm.rtcp_xr_count+rm.rtcp_sr_count){
+				APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " RTD=%d", rm.delay.round_trip_delay/(rm.rtcp_xr_count+rm.rtcp_sr_count), 0, 65535);
 			}
 			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " ESD=%d", rm.delay.end_system_delay, 0, 65535);
-			/*APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " OWD=%d", rm.delay.one_way_delay, 0, 65535);*/
-			/*APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " SOWD=%d", rm.delay.symm_one_way_delay, 0, 65535);*/
 			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " IAJ=%d", rm.delay.interarrival_jitter, 0, 65535);
 			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " MAJ=%d", rm.delay.mean_abs_jitter, 0, 65535);
 	}
@@ -263,7 +236,6 @@ static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * off
 		append_to_buffer(buffer, size, offset, "\r\nSignal:");
 			APPEND_IF(buffer, size, offset, " SL=%d", rm.signal.level, rm.signal.level != 127);
 			APPEND_IF(buffer, size, offset, " NL=%d", rm.signal.noise_level, rm.signal.noise_level != 127);
-			/*append_to_buffer(buffer, size, offset, " RERL=%d", rm.signal.residual_echo_return_loss);*/
 	}
 
 	/*if quality estimates metrics are available, rtcp_xr_count should be always not null*/
@@ -272,25 +244,8 @@ static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * off
 		IF_NUM_IN_RANGE(rm.quality_estimates.moscq/rm.rtcp_xr_count, 1, 5, moscq_str = float_to_one_decimal_string(rm.quality_estimates.moscq/rm.rtcp_xr_count));
 
 		append_to_buffer(buffer, size, offset, "\r\nQualityEst:");
-			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " RLQ=%d", rm.quality_estimates.rlq/rm.rtcp_xr_count, 1, 120);
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " RLQEstAlg=%s", rm.quality_estimates.rlqestalg);*/
-			APPEND_IF_NUM_IN_RANGE(buffer, size, offset, " RCQ=%d", rm.quality_estimates.rcq/rm.rtcp_xr_count, 1, 120);
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " RCQEstAlgo=%s", rm.quality_estimates.rcqestalg);*/
-			/*append_to_buffer(buffer, size, offset, " EXTRI=%d", rm.quality_estimates.extri);*/
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " ExtRIEstAlg=%s", rm.quality_estimates.extriestalg);*/
-			/*append_to_buffer(buffer, size, offset, " EXTRO=%d", rm.quality_estimates.extro);*/
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " ExtROEstAlg=%s", rm.quality_estimates.extroutestalg);*/
 			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " MOSLQ=%s", moslq_str);
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " MOSLQEstAlgo=%s", rm.quality_estimates.moslqestalg);*/
 			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " MOSCQ=%s", moscq_str);
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " MOSCQEstAlgo=%s", rm.quality_estimates.moscqestalg);*/
-			/*APPEND_IF_NOT_NULL_STR(buffer, size, offset, " QoEEstAlg=%s", rm.quality_estimates.qoestalg);*/
-	}
-
-	if ((available_metrics & METRICS_ADAPTIVE_ALGORITHM) != 0){
-		append_to_buffer(buffer, size, offset, "\r\nAdaptiveAlg:");
-			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " IN=%s", rm.qos_analyzer.input);
-			APPEND_IF_NOT_NULL_STR(buffer, size, offset, " OUT=%s", rm.qos_analyzer.output);
 	}
 
 	append_to_buffer(buffer, size, offset, "\r\n");
@@ -304,28 +259,42 @@ static void append_metrics_to_buffer(char ** buffer, size_t * size, size_t * off
 	ms_free(moscq_str);
 }
 
-static void send_report(const LinphoneCall* call, reporting_session_report_t * report, const char * report_event) {
+static int send_report(LinphoneCall* call, reporting_session_report_t * report, const char * report_event) {
 	LinphoneContent content = {0};
 	LinphoneAddress *addr;
 	int expires = -1;
 	size_t offset = 0;
 	size_t size = 2048;
 	char * buffer;
+	int ret = 0;
+
+	/*if we are on a low bandwidth network, do not send reports to not overload it*/
+	if (linphone_call_params_low_bandwidth_enabled(linphone_call_get_current_params(call))){
+		ms_warning("QualityReporting[%p]: Avoid sending reports on low bandwidth network", call);
+		ret = 1;
+		goto end;
+	}
 
 	/*if the call was hung up too early, we might have invalid IPs information
 	in that case, we abort the report since it's not useful data*/
 	if (report->info.local_addr.ip == NULL || strlen(report->info.local_addr.ip) == 0
 		|| report->info.remote_addr.ip == NULL || strlen(report->info.remote_addr.ip) == 0) {
-		ms_warning("The call was hang up too early (duration: %d sec) and IP could "
+		ms_warning("QualityReporting[%p]: Trying to submit a %s too early (call duration: %d sec) but %s IP could "
 			"not be retrieved so dropping this report"
-			, linphone_call_get_duration(call));
-		return;
+			, call
+			, report_event
+			, linphone_call_get_duration(call)
+			, (report->info.local_addr.ip == NULL || strlen(report->info.local_addr.ip) == 0) ? "local" : "remote");
+		ret = 2;
+		goto end;
 	}
 
 	addr = linphone_address_new(linphone_proxy_config_get_quality_reporting_collector(call->dest_proxy));
 	if (addr == NULL) {
-		ms_warning("Asked to submit reporting statistics but no collector address found");
-		return;
+		ms_warning("QualityReporting[%p]: Asked to submit reporting statistics but no collector address found"
+			, call);
+		ret = 3;
+		goto end;
 	}
 
 	buffer = (char *) ms_malloc(size);
@@ -354,65 +323,100 @@ static void send_report(const LinphoneCall* call, reporting_session_report_t * r
 	}
 	APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, "DialogID: %s\r\n", report->dialog_id);
 
+	if (report->qos_analyzer.timestamp!=NULL){
+		append_to_buffer(&buffer, &size, &offset, "AdaptiveAlg:");
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " NAME=%s", report->qos_analyzer.name);
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " TS=%s", report->qos_analyzer.timestamp);
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " IN_LEG=%s", report->qos_analyzer.input_leg);
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " IN=%s", report->qos_analyzer.input);
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " OUT_LEG=%s", report->qos_analyzer.output_leg);
+			APPEND_IF_NOT_NULL_STR(&buffer, &size, &offset, " OUT=%s", report->qos_analyzer.output);
+		append_to_buffer(&buffer, &size, &offset, "\r\n");
+	}
+
 	content.data = buffer;
 	content.size = strlen(buffer);
 
 	/*(WIP) Memory leak: PUBLISH message is never freed (issue 1283)*/
-	linphone_core_publish(call->core, addr, "vq-rtcpxr", expires, &content);
+	if (! linphone_core_publish(call->core, addr, "vq-rtcpxr", expires, &content)){
+		ret=4;
+	} else {
+		reset_avg_metrics(report);
+		STR_REASSIGN(report->qos_analyzer.timestamp, NULL);
+		STR_REASSIGN(report->qos_analyzer.input_leg, NULL);
+		STR_REASSIGN(report->qos_analyzer.input, NULL);
+		STR_REASSIGN(report->qos_analyzer.output_leg, NULL);
+		STR_REASSIGN(report->qos_analyzer.output, NULL);
+	}
+
 	linphone_address_destroy(addr);
 
-	reset_avg_metrics(report);
 	linphone_content_uninit(&content);
+
+	end:
+	ms_message("QualityReporting[%p]: Send '%s' for '%s' stream with status %d",
+		call,
+		report_event,
+		report->info.local_group,
+		ret
+	);
+
+	return ret;
 }
 
 static const SalStreamDescription * get_media_stream_for_desc(const SalMediaDescription * smd, SalStreamType sal_stream_type) {
 	int count;
 	if (smd != NULL) {
-		for (count = 0; count < smd->n_total_streams; ++count) {
+		for (count = 0; count < smd->nb_streams; ++count) {
 			if (smd->streams[count].type == sal_stream_type) {
 				return &smd->streams[count];
 			}
 		}
 	}
-
-	ms_warning("Could not find the associated stream of type %d", sal_stream_type);
 	return NULL;
 }
 
 static void update_ip(LinphoneCall * call, int stats_type) {
 	SalStreamType sal_stream_type = (stats_type == LINPHONE_CALL_STATS_AUDIO) ? SalAudio : SalVideo;
-	if (media_report_enabled(call,stats_type)) {
-		const SalStreamDescription * local_desc = get_media_stream_for_desc(call->localdesc, sal_stream_type);
-		const SalStreamDescription * remote_desc = get_media_stream_for_desc(sal_call_get_remote_media_description(call->op), sal_stream_type);
+	const SalStreamDescription * local_desc = get_media_stream_for_desc(call->localdesc, sal_stream_type);
+	const SalStreamDescription * remote_desc = get_media_stream_for_desc(sal_call_get_remote_media_description(call->op), sal_stream_type);
 
-		/*local info are always up-to-date and correct*/
-		if (local_desc != NULL) {
-			call->log->reports[stats_type]->info.local_addr.port = local_desc->rtp_port;
-			STR_REASSIGN(call->log->reports[stats_type]->info.local_addr.ip, ms_strdup(local_desc->rtp_addr));
+	if (local_desc != NULL) {
+		/*since this function might be called for video stream AFTER it has been uninitialized, local description might
+		be invalid. In any other case, IP/port should be always filled and valid*/
+		if (local_desc->rtp_addr != NULL && strlen(local_desc->rtp_addr) > 0) {
+			call->log->reporting.reports[stats_type]->info.local_addr.port = local_desc->rtp_port;
+			STR_REASSIGN(call->log->reporting.reports[stats_type]->info.local_addr.ip, ms_strdup(local_desc->rtp_addr));
 		}
+	}
 
-		if (remote_desc != NULL) {
-			/*port is always stored in stream description struct*/
-			call->log->reports[stats_type]->info.remote_addr.port = remote_desc->rtp_port;
+	if (remote_desc != NULL) {
+		/*port is always stored in stream description struct*/
+		call->log->reporting.reports[stats_type]->info.remote_addr.port = remote_desc->rtp_port;
 
-			/*for IP it can be not set if we are using a direct route*/
-			if (remote_desc->rtp_addr != NULL && strlen(remote_desc->rtp_addr) > 0) {
-				STR_REASSIGN(call->log->reports[stats_type]->info.remote_addr.ip, ms_strdup(remote_desc->rtp_addr));
-			} else {
-				STR_REASSIGN(call->log->reports[stats_type]->info.remote_addr.ip, ms_strdup(sal_call_get_remote_media_description(call->op)->addr));
-			}
+		/*for IP it can be not set if we are using a direct route*/
+		if (remote_desc->rtp_addr != NULL && strlen(remote_desc->rtp_addr) > 0) {
+			STR_REASSIGN(call->log->reporting.reports[stats_type]->info.remote_addr.ip, ms_strdup(remote_desc->rtp_addr));
+		} else {
+			STR_REASSIGN(call->log->reporting.reports[stats_type]->info.remote_addr.ip, ms_strdup(sal_call_get_remote_media_description(call->op)->addr));
 		}
 	}
 }
 
-static void qos_analyzer_on_action_suggested(void *user_data, const char * input, const char * output){
-	reporting_content_metrics_t *metrics = (reporting_content_metrics_t*) user_data;
-	char * newstr = NULL;
-	newstr = ms_strdup_printf("%s%s;", metrics->qos_analyzer.input?metrics->qos_analyzer.input:"", input);
-	STR_REASSIGN(metrics->qos_analyzer.input, newstr)
+static void qos_analyzer_on_action_suggested(void *user_data, int datac, const char** data){
+	reporting_session_report_t *report = (reporting_session_report_t*) user_data;
+	char * appendbuf;
 
-	newstr = ms_strdup_printf("%s%s;", metrics->qos_analyzer.output?metrics->qos_analyzer.output:"", output);
-	STR_REASSIGN(metrics->qos_analyzer.output, newstr)
+	appendbuf=ms_strdup_printf("%s%d;", report->qos_analyzer.timestamp?report->qos_analyzer.timestamp:"", ms_time(0));
+	STR_REASSIGN(report->qos_analyzer.timestamp,appendbuf);
+
+	STR_REASSIGN(report->qos_analyzer.input_leg, ms_strdup(data[0]));
+	appendbuf=ms_strdup_printf("%s%s;", report->qos_analyzer.input?report->qos_analyzer.input:"", data[1]);
+	STR_REASSIGN(report->qos_analyzer.input,appendbuf);
+
+	STR_REASSIGN(report->qos_analyzer.output_leg, ms_strdup(data[2]));
+	appendbuf=ms_strdup_printf("%s%s;", report->qos_analyzer.output?report->qos_analyzer.output:"", data[3]);
+	STR_REASSIGN(report->qos_analyzer.output, appendbuf);
 }
 
 void linphone_reporting_update_ip(LinphoneCall * call) {
@@ -425,16 +429,23 @@ void linphone_reporting_update_media_info(LinphoneCall * call, int stats_type) {
 	const PayloadType * local_payload = NULL;
 	const PayloadType * remote_payload = NULL;
 	const LinphoneCallParams * current_params = linphone_call_get_current_params(call);
-	reporting_session_report_t * report = call->log->reports[stats_type];
+	reporting_session_report_t * report = call->log->reporting.reports[stats_type];
 
 	if (!media_report_enabled(call, stats_type))
 		return;
 
+
 	STR_REASSIGN(report->info.call_id, ms_strdup(call->log->call_id));
-	STR_REASSIGN(report->info.local_group, ms_strdup_printf("linphone-%s-%s-%s", (stats_type == LINPHONE_CALL_STATS_AUDIO ? "audio" : "video"),
-		linphone_core_get_user_agent_name(), report->info.call_id));
-	STR_REASSIGN(report->info.remote_group, ms_strdup_printf("linphone-%s-%s-%s", (stats_type == LINPHONE_CALL_STATS_AUDIO ? "audio" : "video"),
-		linphone_call_get_remote_user_agent(call), report->info.call_id));
+	STR_REASSIGN(report->info.local_group, ms_strdup_printf("linphone-%s-%s-%s",
+		(stats_type == LINPHONE_CALL_STATS_AUDIO ? "audio" : "video"),
+		linphone_core_get_user_agent_name(),
+		report->info.call_id)
+	);
+	STR_REASSIGN(report->info.remote_group, ms_strdup_printf("linphone-%s-%s-%s",
+		(stats_type == LINPHONE_CALL_STATS_AUDIO ? "audio" : "video"),
+		linphone_call_get_remote_user_agent(call),
+		report->info.call_id)
+	);
 
 	if (call->dir == LinphoneCallIncoming) {
 		STR_REASSIGN(report->info.remote_id, linphone_address_as_string(call->log->from));
@@ -488,17 +499,22 @@ void linphone_reporting_update_media_info(LinphoneCall * call, int stats_type) {
 	}
 }
 
-void linphone_reporting_on_rtcp_received(LinphoneCall *call, int stats_type) {
-	reporting_session_report_t * report = call->log->reports[stats_type];
+/* generate random float in interval ] 0.9 t ; 1.1 t [*/
+static float reporting_rand(float t){
+	return t * (.2f * (rand() / (RAND_MAX * 1.0f)) + 0.9f);
+}
+
+void linphone_reporting_on_rtcp_update(LinphoneCall *call, int stats_type) {
+	reporting_session_report_t * report = call->log->reporting.reports[stats_type];
 	reporting_content_metrics_t * metrics = NULL;
-	MSQosAnalyzer *analyzer=NULL;
 	LinphoneCallStats stats = call->stats[stats_type];
 	mblk_t *block = NULL;
-
-	int report_interval = linphone_proxy_config_get_quality_reporting_interval(call->dest_proxy);
+	int report_interval;
 
 	if (! media_report_enabled(call,stats_type))
 		return;
+
+	report_interval = linphone_proxy_config_get_quality_reporting_interval(call->dest_proxy);
 
 	if (stats.updated == LINPHONE_CALL_STATS_RECEIVED_RTCP_UPDATE) {
 		metrics = &report->remote_metrics;
@@ -506,15 +522,6 @@ void linphone_reporting_on_rtcp_received(LinphoneCall *call, int stats_type) {
 	} else if (stats.updated == LINPHONE_CALL_STATS_SENT_RTCP_UPDATE) {
 		metrics = &report->local_metrics;
 		block = stats.sent_rtcp;
-	}
-	/*should not be done there*/
-	if (call->audiostream->ms.use_rc&&call->audiostream->ms.rc){
-		analyzer=ms_bitrate_controller_get_qos_analyzer(call->audiostream->ms.rc);
-		if (analyzer){
-			ms_qos_analyzer_set_on_action_suggested(analyzer,
-				qos_analyzer_on_action_suggested,
-				&report->local_metrics);
-		}
 	}
 
 	do{
@@ -524,7 +531,6 @@ void linphone_reporting_on_rtcp_received(LinphoneCall *call, int stats_type) {
 
 			metrics->rtcp_xr_count++;
 
-			metrics->quality_estimates.rcq += rtcp_XR_voip_metrics_get_r_factor(block);
 			metrics->quality_estimates.moslq += rtcp_XR_voip_metrics_get_mos_lq(block) / 10.f;
 			metrics->quality_estimates.moscq += rtcp_XR_voip_metrics_get_mos_cq(block) / 10.f;
 
@@ -538,30 +544,93 @@ void linphone_reporting_on_rtcp_received(LinphoneCall *call, int stats_type) {
 			metrics->session_description.packet_loss_concealment = (config >> 6) & 0x3;
 
 			metrics->delay.round_trip_delay += rtcp_XR_voip_metrics_get_round_trip_delay(block);
+		}else if (rtcp_is_SR(block)){
+			MediaStream *ms=(stats_type==0 ? &call->audiostream->ms : &call->videostream->ms);
+			float rtt = rtp_session_get_round_trip_propagation(ms->sessions.rtp_session);
+
+			if (rtt > 1e-6){
+				metrics->rtcp_sr_count++;
+				metrics->delay.round_trip_delay += 1000*rtt;
+			}
 		}
 	}while(rtcp_next_packet(block));
 
-	/* check if we should send an interval report */
-	if (report_interval>0 && ms_time(NULL)-report->last_report_date>report_interval){
-		linphone_reporting_publish_interval_report(call);
+	/* check if we should send an interval report - use a random sending time to
+	dispatch reports and avoid sending them too close from each other */
+	if (report_interval>0 && ms_time(NULL)-report->last_report_date>reporting_rand(report_interval)){
+		linphone_reporting_update_media_info(call, stats_type);
+		send_report(call, report, "VQIntervalReport");
 	}
 }
 
-static void publish_report(LinphoneCall *call, const char *event_type){
+static int publish_report(LinphoneCall *call, const char *event_type){
+	int ret = 0;
 	int i;
 	for (i = 0; i < 2; i++){
 		if (media_report_enabled(call, i)){
+			int sndret;
 			linphone_reporting_update_media_info(call, i);
-			send_report(call, call->log->reports[i], event_type);
+			sndret=send_report(call, call->log->reporting.reports[i], event_type);
+			if (sndret>0){
+				ret += 10+(i+1)*sndret;
+			}
+		} else{
+			ret += i+1;
 		}
 	}
-}
-void linphone_reporting_publish_session_report(LinphoneCall* call) {
-	publish_report(call, "VQSessionReport: CallTerm");
+	return ret;
 }
 
-void linphone_reporting_publish_interval_report(LinphoneCall* call) {
-	publish_report(call, "VQIntervalReport");
+int linphone_reporting_publish_session_report(LinphoneCall* call, bool_t call_term) {
+	char * session_type = call_term?"VQSessionReport: CallTerm":"VQSessionReport";
+	return publish_report(call, session_type);
+}
+
+int linphone_reporting_publish_interval_report(LinphoneCall* call) {
+	return publish_report(call, "VQIntervalReport");
+}
+
+void linphone_reporting_call_state_updated(LinphoneCall *call){
+	LinphoneCallState state=linphone_call_get_state(call);
+
+	switch (state){
+		case LinphoneCallStreamsRunning:{
+			bool_t video_enabled=media_report_enabled(call, LINPHONE_CALL_STATS_VIDEO);
+			int i;
+			MediaStream *streams[2] = {(MediaStream*) call->audiostream, (MediaStream *) call->videostream};
+			MSQosAnalyzer *analyzer;
+			for (i=0;i<2;i++){
+				if (streams[i]==NULL||streams[i]->rc==NULL){
+					ms_message("QualityReporting[%p] Cannot set on_action_suggested"
+					" callback for %s stream because something is null", call, i?"video":"audio");
+					continue;
+				}
+
+				analyzer=ms_bitrate_controller_get_qos_analyzer(streams[i]->rc);
+				if (analyzer){
+					STR_REASSIGN(call->log->reporting.reports[i]->qos_analyzer.name, ms_strdup(ms_qos_analyzer_get_name(analyzer)));
+					ms_qos_analyzer_set_on_action_suggested(analyzer,
+						qos_analyzer_on_action_suggested,
+						call->log->reporting.reports[i]);
+				}
+			}
+			linphone_reporting_update_ip(call);
+			if (!video_enabled && call->log->reporting.was_video_running){
+				send_report(call, call->log->reporting.reports[LINPHONE_CALL_STATS_VIDEO], "VQSessionReport");
+			}
+			call->log->reporting.was_video_running=video_enabled;
+			break;
+		}
+		case LinphoneCallEnd:{
+			if (call->log->status==LinphoneCallSuccess || call->log->status==LinphoneCallAborted){
+				linphone_reporting_publish_session_report(call, TRUE);
+			}
+			break;
+		}
+		default:{
+			break;
+		}
+	}
 }
 
 reporting_session_report_t * linphone_reporting_new() {
@@ -582,11 +651,9 @@ reporting_session_report_t * linphone_reporting_new() {
 		metrics[i]->session_description.packet_loss_concealment = -1;
 
 		metrics[i]->jitter_buffer.adaptive = -1;
-		/*metrics[i]->jitter_buffer.rate = -1;*/
 		metrics[i]->jitter_buffer.abs_max = -1;
 
 		metrics[i]->delay.end_system_delay = -1;
-		/*metrics[i]->delay.one_way_delay = -1;*/
 		metrics[i]->delay.interarrival_jitter = -1;
 		metrics[i]->delay.mean_abs_jitter = -1;
 
@@ -614,8 +681,14 @@ void linphone_reporting_destroy(reporting_session_report_t * report) {
 	if (report->local_metrics.session_description.payload_desc != NULL) ms_free(report->local_metrics.session_description.payload_desc);
 	if (report->remote_metrics.session_description.fmtp != NULL) ms_free(report->remote_metrics.session_description.fmtp);
 	if (report->remote_metrics.session_description.payload_desc != NULL) ms_free(report->remote_metrics.session_description.payload_desc);
-	if (report->local_metrics.qos_analyzer.input != NULL) ms_free(report->local_metrics.qos_analyzer.input);
-	if (report->local_metrics.qos_analyzer.output != NULL) ms_free(report->local_metrics.qos_analyzer.output);
+	if (report->qos_analyzer.name != NULL) ms_free(report->qos_analyzer.name);
+	if (report->qos_analyzer.timestamp != NULL) ms_free(report->qos_analyzer.timestamp);
+	if (report->qos_analyzer.input_leg != NULL) ms_free(report->qos_analyzer.input_leg);
+	if (report->qos_analyzer.input != NULL) ms_free(report->qos_analyzer.input);
+	if (report->qos_analyzer.output_leg != NULL) ms_free(report->qos_analyzer.output_leg);
+	if (report->qos_analyzer.output != NULL) ms_free(report->qos_analyzer.output);
 
 	ms_free(report);
 }
+
+

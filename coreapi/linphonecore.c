@@ -129,8 +129,8 @@ LinphoneCallLog * linphone_call_log_new(LinphoneCall *call, LinphoneAddress *fro
 	cl->status=LinphoneCallAborted; /*default status*/
 	cl->quality=-1;
 
-	cl->reports[LINPHONE_CALL_STATS_AUDIO]=linphone_reporting_new();
-	cl->reports[LINPHONE_CALL_STATS_VIDEO]=linphone_reporting_new();
+	cl->reporting.reports[LINPHONE_CALL_STATS_AUDIO]=linphone_reporting_new();
+	cl->reporting.reports[LINPHONE_CALL_STATS_VIDEO]=linphone_reporting_new();
 	return cl;
 }
 
@@ -394,8 +394,8 @@ void linphone_call_log_destroy(LinphoneCallLog *cl){
 	if (cl->to!=NULL) linphone_address_destroy(cl->to);
 	if (cl->refkey!=NULL) ms_free(cl->refkey);
 	if (cl->call_id) ms_free(cl->call_id);
-	if (cl->reports[LINPHONE_CALL_STATS_AUDIO]!=NULL) linphone_reporting_destroy(cl->reports[LINPHONE_CALL_STATS_AUDIO]);
-	if (cl->reports[LINPHONE_CALL_STATS_VIDEO]!=NULL) linphone_reporting_destroy(cl->reports[LINPHONE_CALL_STATS_VIDEO]);
+	if (cl->reporting.reports[LINPHONE_CALL_STATS_AUDIO]!=NULL) linphone_reporting_destroy(cl->reporting.reports[LINPHONE_CALL_STATS_AUDIO]);
+	if (cl->reporting.reports[LINPHONE_CALL_STATS_VIDEO]!=NULL) linphone_reporting_destroy(cl->reporting.reports[LINPHONE_CALL_STATS_VIDEO]);
 
 	ms_free(cl);
 }
@@ -1394,6 +1394,8 @@ static void linphone_core_init(LinphoneCore * lc, const LinphoneCoreVTable *vtab
 	lc->http_verify_policy = belle_tls_verify_policy_new();
 	belle_http_provider_set_tls_verify_policy(lc->http_provider,lc->http_verify_policy);
 
+	lc->file_transfer_server = NULL;
+
 	certificates_config_read(lc);
 
 	remote_provisioning_uri = linphone_core_get_provisioning_uri(lc);
@@ -2376,7 +2378,7 @@ void linphone_core_iterate(LinphoneCore *lc){
  *
  * @ingroup call_control
  *
- * A sip address should look like DisplayName <sip:username@domain:port> .
+ * A sip address should look like DisplayName \<sip:username\@domain:port\> .
  * Basically this function performs the following tasks
  * - if a phone number is entered, prepend country prefix of the default proxy
  *   configuration, eventually escape the '+' by 00.
@@ -2956,7 +2958,7 @@ int linphone_core_transfer_call(LinphoneCore *lc, LinphoneCall *call, const char
  *
  * It is possible to follow the progress of the transfer provided that transferee sends notification about it.
  * In this case, the transfer_state_changed callback of the #LinphoneCoreVTable is invoked to notify of the state of the new call at the other party.
- * The notified states are #LinphoneCallOutgoingInit , #LinphoneCallOutgoingProgress, #LinphoneCallOutgoingRinging and #LinphoneCallOutgoingConnected.
+ * The notified states are #LinphoneCallOutgoingInit , #LinphoneCallOutgoingProgress, #LinphoneCallOutgoingRinging and #LinphoneCallConnected.
 **/
 int linphone_core_transfer_call_to_another(LinphoneCore *lc, LinphoneCall *call, LinphoneCall *dest){
 	int result = sal_call_refer_with_replaces (call->op,dest->op);
@@ -2976,7 +2978,7 @@ bool_t linphone_core_inc_invite_pending(LinphoneCore*lc){
 }
 
 bool_t linphone_core_incompatible_security(LinphoneCore *lc, SalMediaDescription *md){
-	return linphone_core_is_media_encryption_mandatory(lc) && linphone_core_get_media_encryption(lc)==LinphoneMediaEncryptionSRTP && !media_description_has_srtp(md);
+	return linphone_core_is_media_encryption_mandatory(lc) && linphone_core_get_media_encryption(lc)==LinphoneMediaEncryptionSRTP && !sal_media_description_has_srtp(md);
 }
 
 void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call){
@@ -3256,7 +3258,6 @@ int linphone_core_start_accept_call_update(LinphoneCore *lc, LinphoneCall *call)
 		linphone_core_update_streams (lc,call,md);
 		linphone_call_fix_call_parameters(call);
 	}
-
 	if (call->state != LinphoneCallOutgoingEarlyMedia) /*don't change the state in case of outgoing early (SIP UPDATE)*/
 		linphone_call_set_state(call,LinphoneCallStreamsRunning,"Connected (streams running)");
 	return 0;
@@ -3430,8 +3431,8 @@ int linphone_core_accept_call_with_params(LinphoneCore *lc, LinphoneCall *call, 
 		if (md) {
 			call->params.has_video &= linphone_core_media_description_contains_video_stream(md);
 			/* Handle AVPF and SRTP. */
-			call->params.avpf_enabled = media_description_has_avpf(md);
-			if ((media_description_has_srtp(md) == TRUE) && (media_stream_srtp_supported() == TRUE)) {
+			call->params.avpf_enabled = sal_media_description_has_avpf(md);
+			if ((sal_media_description_has_srtp(md) == TRUE) && (media_stream_srtp_supported() == TRUE)) {
 				call->params.media_encryption = LinphoneMediaEncryptionSRTP;
 			}
 		}
@@ -5915,6 +5916,8 @@ static void linphone_core_uninit(LinphoneCore *lc)
 	lc->last_recv_msg_ids=ms_list_free(lc->last_recv_msg_ids);
 
 	// Free struct variable
+	ms_free(lc->file_transfer_server);
+
 	if(lc->zrtp_secrets_cache != NULL) {
 		ms_free(lc->zrtp_secrets_cache);
 	}
@@ -6561,3 +6564,6 @@ bool_t linphone_core_sdp_200_ack_enabled(const LinphoneCore *lc) {
 	return lc->sip_conf.sdp_200_ack!=0;
 }
 
+void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url) {
+	core->file_transfer_server=ms_strdup(server_url);
+}
