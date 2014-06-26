@@ -522,7 +522,6 @@ static void build_sound_devices_table(LinphoneCore *lc){
 	const char **old;
 	int ndev;
 	int i;
-	printf("rebuilding sound device table\n");
 	const MSList *elem=ms_snd_card_manager_get_list(ms_snd_card_manager_get());
 	ndev=ms_list_size(elem);
 	devices=ms_malloc((ndev+1)*sizeof(const char *));
@@ -766,8 +765,7 @@ static void rtp_config_read(LinphoneCore *lc)
 	bool_t rtp_no_xmit_on_audio_mute;
 	bool_t adaptive_jitt_comp_enabled;
 
-        // Audio port was static 7078, changning Linphone to default to IANA ephemeral port range for audio
-	if (lp_config_get_range(lc->config, "rtp", "audio_rtp_port", &min_port, &max_port, 49152, 65535) == TRUE) {
+	if (lp_config_get_range(lc->config, "rtp", "audio_rtp_port", &min_port, &max_port, 7078, 7078) == TRUE) {
 		if (min_port <= 0) min_port = 1;
 		if (max_port > 65535) max_port = 65535;
 		linphone_core_set_audio_port_range(lc, min_port, max_port);
