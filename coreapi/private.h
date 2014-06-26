@@ -338,7 +338,7 @@ void linphone_subscription_closed(LinphoneCore *lc, SalOp *op);
 void linphone_core_update_allocated_audio_bandwidth(LinphoneCore *lc);
 void linphone_core_update_allocated_audio_bandwidth_in_call(LinphoneCall *call, const PayloadType *pt, int maxbw);
 
-int linphone_core_run_stun_tests(LinphoneCore *lc, LinphoneCall *call);
+LINPHONE_PUBLIC int linphone_core_run_stun_tests(LinphoneCore *lc, LinphoneCall *call);
 void linphone_core_resolve_stun_server(LinphoneCore *lc);
 const struct addrinfo *linphone_core_get_stun_server_addrinfo(LinphoneCore *lc);
 void linphone_core_adapt_to_network(LinphoneCore *lc, int ping_time_ms, LinphoneCallParams *params);
@@ -360,7 +360,7 @@ LinphoneProxyConfig * linphone_core_lookup_known_proxy(LinphoneCore *lc, const L
 const char *linphone_core_find_best_identity(LinphoneCore *lc, const LinphoneAddress *to);
 int linphone_core_get_local_ip_for(int type, const char *dest, char *result);
 
-LinphoneProxyConfig *linphone_proxy_config_new_from_config_file(struct _LpConfig *config, int index);
+LinphoneProxyConfig *linphone_proxy_config_new_from_config_file(LinphoneCore *lc, int index);
 void linphone_proxy_config_write_to_config_file(struct _LpConfig* config,LinphoneProxyConfig *obj, int index);
 
 int linphone_proxy_config_normalize_number(LinphoneProxyConfig *cfg, const char *username, char *result, size_t result_len);
@@ -406,8 +406,8 @@ LinphoneProxyConfig * is_a_linphone_proxy_config(void *user_pointer);
 void linphone_core_queue_task(LinphoneCore *lc, belle_sip_source_func_t task_fun, void *data, const char *task_description);
 
 static const int linphone_proxy_config_magic=0x7979;
-bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const LinphoneAddress *b);
-bool_t linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
+LINPHONE_PUBLIC bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const LinphoneAddress *b);
+LINPHONE_PUBLIC bool_t linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
 void _linphone_proxy_config_unregister(LinphoneProxyConfig *obj);
 
 /*chat*/

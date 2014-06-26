@@ -519,6 +519,7 @@ void sal_set_dscp(Sal *ctx, int dscp);
 int sal_reset_transports(Sal *ctx);
 ortp_socket_t sal_get_socket(Sal *ctx);
 void sal_set_user_agent(Sal *ctx, const char *user_agent);
+const char* sal_get_user_agent(Sal *ctx);
 void sal_append_stack_string_to_user_agent(Sal *ctx);
 /*keepalive period in ms*/
 void sal_set_keepalive_period(Sal *ctx,unsigned int value);
@@ -544,7 +545,7 @@ void sal_verify_server_certificates(Sal *ctx, bool_t verify);
 void sal_verify_server_cn(Sal *ctx, bool_t verify);
 void sal_set_uuid(Sal*ctx, const char *uuid);
 int sal_create_uuid(Sal*ctx, char *uuid, size_t len);
-void sal_enable_test_features(Sal*ctx, bool_t enabled);
+LINPHONE_PUBLIC void sal_enable_test_features(Sal*ctx, bool_t enabled);
 void sal_use_no_initial_route(Sal *ctx, bool_t enabled);
 
 int sal_iterate(Sal *sal);

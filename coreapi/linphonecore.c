@@ -718,7 +718,7 @@ static void sip_config_read(LinphoneCore *lc)
 
 	/* get proxies config */
 	for(i=0;; i++){
-		LinphoneProxyConfig *cfg=linphone_proxy_config_new_from_config_file(lc->config,i);
+		LinphoneProxyConfig *cfg=linphone_proxy_config_new_from_config_file(lc,i);
 		if (cfg!=NULL){
 			linphone_core_add_proxy_config(lc,cfg);
 		}else{
@@ -1914,6 +1914,15 @@ void linphone_core_set_user_agent(LinphoneCore *lc, const char *name, const char
 	strncpy(_ua_name,name,sizeof(_ua_name)-1);
 	strncpy(_ua_version,ver,sizeof(_ua_version));
 	apply_user_agent(lc);
+#endif
+}
+const char *linphone_core_get_user_agent(LinphoneCore *lc){
+#if USE_BELLESIP
+	return sal_get_user_agent(lc->sal);
+#else
+	static char ua_buffer[255] = {0};
+	snprintf(ua_buffer, "%s/%s", _ua_name, _ua_version, 254);
+	return ua_buffer;
 #endif
 }
 
