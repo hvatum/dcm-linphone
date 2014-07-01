@@ -2331,6 +2331,7 @@ core_start:
 		restart=FALSE;
 		goto core_start;
 	}
+	if (config_file) free(config_file);
 #ifndef HAVE_GTK_OSX
 	/*workaround a bug on win32 that makes status icon still present in the systray even after program exit.*/
 	if (icon) gtk_status_icon_set_visible(icon,FALSE);

@@ -214,9 +214,9 @@ bool_t linphone_core_chat_enabled(const LinphoneCore *lc){
 }
 
 /**
- * Returns an array of chat rooms
+ * Returns an list of chat rooms
  * @param lc #LinphoneCore object
- * @return An array of #LinpĥoneChatRoom
+ * @return A list of #LinphoneChatRoom
 **/
 MSList* linphone_core_get_chat_rooms(LinphoneCore *lc) {
 	return lc->chatrooms;
@@ -316,7 +316,7 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 	char* content_type;
 	const char *identity=NULL;
 	time_t t=time(NULL);
-
+	linphone_chat_message_ref(msg);
 	/* Check if we shall upload a file to a server */
 	if (msg->file_transfer_information != NULL) {
 		/* open a transaction with the server and send an empty request(RCS5.1 section 3.5.4.8.3.1) */
@@ -337,7 +337,7 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 		cbs.process_auth_requested=process_auth_requested;
 		l=belle_http_request_listener_create_from_callbacks(&cbs,msg); /* give msg to listener to be able to start the actual file upload when server answer a 204 No content */
 		belle_http_provider_send_request(cr->lc->http_provider,req,l);
-
+		linphone_chat_message_unref(msg);
 		return;
 	}
 
@@ -388,6 +388,7 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 	}
 	linphone_chat_room_delete_composing_idle_timer(cr);
 	linphone_chat_room_delete_composing_refresh_timer(cr);
+	linphone_chat_message_unref(msg);
 }
 
 /**
