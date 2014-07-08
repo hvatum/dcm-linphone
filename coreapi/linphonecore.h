@@ -120,7 +120,6 @@ typedef enum _LinphoneTransportType LinphoneTransportType;
  * return NULL.
  *
  * @ingroup linphone_address
- * @var LinphoneAddress
  */
 typedef struct SalAddress LinphoneAddress;
 
@@ -219,7 +218,7 @@ LINPHONE_PUBLIC const char *linphone_error_info_get_details(const LinphoneErrorI
 LINPHONE_PUBLIC int linphone_error_info_get_protocol_code(const LinphoneErrorInfo *ei);
 
 /* linphone dictionary */
-LINPHONE_PUBLIC	LinphoneDictionary* linphone_dictionary_new();
+LINPHONE_PUBLIC	LinphoneDictionary* linphone_dictionary_new(void);
 LinphoneDictionary * linphone_dictionary_clone(const LinphoneDictionary* src);
 LinphoneDictionary * linphone_dictionary_ref(LinphoneDictionary* obj);
 void linphone_dictionary_unref(LinphoneDictionary* obj);
@@ -431,6 +430,21 @@ LINPHONE_PUBLIC MSVideoSize linphone_call_params_get_sent_video_size(const Linph
  * @return The received video size or MS_VIDEO_SIZE_UNKNOWN if not available.
  */
 LINPHONE_PUBLIC MSVideoSize linphone_call_params_get_received_video_size(const LinphoneCallParams *cp);
+
+
+/**
+ * Gets the framerate of the video that is sent.
+ * @param[in] cp The call parameters.
+ * @return the actual sent framerate in frames per seconds, 0 if not available.
+ */
+LINPHONE_PUBLIC float linphone_call_params_get_sent_framerate(const LinphoneCallParams *cp);
+
+/**
+ * Gets the framerate of the video that is received.
+ * @param[in] cp The call paramaters for which to get the received framerate.
+ * @return the actual received framerate in frames per seconds, 0 if not available.
+ */
+LINPHONE_PUBLIC float linphone_call_params_get_received_framerate(const LinphoneCallParams *cp);
 
 /**
  * Gets the RTP profile being used.
@@ -690,6 +704,7 @@ LINPHONE_PUBLIC	const LinphoneCallParams * linphone_call_get_remote_params(Linph
 LINPHONE_PUBLIC void linphone_call_enable_camera(LinphoneCall *lc, bool_t enabled);
 LINPHONE_PUBLIC bool_t linphone_call_camera_enabled(const LinphoneCall *lc);
 LINPHONE_PUBLIC int linphone_call_take_video_snapshot(LinphoneCall *call, const char *file);
+LINPHONE_PUBLIC int linphone_call_take_preview_snapshot(LinphoneCall *call, const char *file);
 LINPHONE_PUBLIC	LinphoneReason linphone_call_get_reason(const LinphoneCall *call);
 LINPHONE_PUBLIC const LinphoneErrorInfo *linphone_call_get_error_info(const LinphoneCall *call);
 LINPHONE_PUBLIC	const char *linphone_call_get_remote_user_agent(LinphoneCall *call);
@@ -1965,7 +1980,7 @@ LINPHONE_PUBLIC	const char * linphone_core_get_stun_server(const LinphoneCore *l
  *
  * @return true if uPnP is available otherwise return false.
  */
-LINPHONE_PUBLIC bool_t linphone_core_upnp_available();
+LINPHONE_PUBLIC bool_t linphone_core_upnp_available(void);
 
 /**
  * @ingroup network_parameters
@@ -2228,9 +2243,12 @@ typedef struct MSVideoSizeDef{
 /* returns a zero terminated table of MSVideoSizeDef*/
 LINPHONE_PUBLIC const MSVideoSizeDef *linphone_core_get_supported_video_sizes(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_set_preferred_video_size(LinphoneCore *lc, MSVideoSize vsize);
+LINPHONE_PUBLIC void linphone_core_set_preview_video_size(LinphoneCore *lc, MSVideoSize vsize);
+LINPHONE_PUBLIC void linphone_core_set_preview_video_size_by_name(LinphoneCore *lc, const char *name);
 LINPHONE_PUBLIC MSVideoSize linphone_core_get_preferred_video_size(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_set_preferred_video_size_by_name(LinphoneCore *lc, const char *name);
-
+LINPHONE_PUBLIC void linphone_core_set_preferred_framerate(LinphoneCore *lc, float fps);
+LINPHONE_PUBLIC float linphone_core_get_preferred_framerate(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_enable_video_preview(LinphoneCore *lc, bool_t val);
 LINPHONE_PUBLIC bool_t linphone_core_video_preview_enabled(const LinphoneCore *lc);
 
@@ -2508,7 +2526,12 @@ LINPHONE_PUBLIC	void linphone_core_init_default_params(LinphoneCore*lc, Linphone
  */
 LINPHONE_PUBLIC	bool_t linphone_core_tunnel_available(void);
 
+/**
+ * Linphone tunnel object.
+ * @ingroup tunnel
+ */
 typedef struct _LinphoneTunnel LinphoneTunnel;
+
 /**
 * get tunnel instance if available
 */
@@ -2611,6 +2634,14 @@ LINPHONE_PUBLIC void linphone_core_set_tone(LinphoneCore *lc, LinphoneToneID id,
  * @param[in] server_url URL of the file server like https://file.linphone.org/upload.php
  * */
 LINPHONE_PUBLIC void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url);
+
+/**
+ * Returns a null terminated table of strings containing the file format extension supported for call recording.
+ * @param core the core
+ * @return the supported formats, typically 'wav' and 'mkv'
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC const char ** linphone_core_get_supported_file_formats(LinphoneCore *core);
 
 #ifdef __cplusplus
 }

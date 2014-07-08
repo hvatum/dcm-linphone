@@ -1035,6 +1035,8 @@ const LinphoneCallParams * linphone_call_get_current_params(LinphoneCall *call){
 	if (vstream != NULL) {
 		call->current_params.sent_vsize = video_stream_get_sent_video_size(vstream);
 		call->current_params.recv_vsize = video_stream_get_received_video_size(vstream);
+		call->current_params.sent_fps = video_stream_get_sent_framerate(vstream);
+		call->current_params.received_fps = video_stream_get_received_framerate(vstream);
 	}
 #endif
 
@@ -1287,6 +1289,10 @@ void linphone_call_send_vfu_request(LinphoneCall *call)
 
 /**
  * Take a photo of currently received video and write it into a jpeg file.
+ * Note that the snapshot is asynchronous, an application shall not assume that the file is created when the function returns.
+ * @param call a LinphoneCall
+ * @param file a path where to write the jpeg content.
+ * @return 0 if successfull, -1 otherwise (typically if jpeg format is not supported).
 **/
 int linphone_call_take_video_snapshot(LinphoneCall *call, const char *file){
 #ifdef VIDEO_ENABLED
@@ -1294,6 +1300,24 @@ int linphone_call_take_video_snapshot(LinphoneCall *call, const char *file){
 		return ms_filter_call_method(call->videostream->jpegwriter,MS_JPEG_WRITER_TAKE_SNAPSHOT,(void*)file);
 	}
 	ms_warning("Cannot take snapshot: no currently running video stream on this call.");
+	return -1;
+#endif
+	return -1;
+}
+
+/**
+ * Take a photo of currently captured video and write it into a jpeg file.
+ * Note that the snapshot is asynchronous, an application shall not assume that the file is created when the function returns.
+ * @param call a LinphoneCall
+ * @param file a path where to write the jpeg content.
+ * @return 0 if successfull, -1 otherwise (typically if jpeg format is not supported). 
+**/
+int linphone_call_take_preview_snapshot(LinphoneCall *call, const char *file){
+#ifdef VIDEO_ENABLED
+	if (call->videostream!=NULL && call->videostream->local_jpegwriter!=NULL){
+		return ms_filter_call_method(call->videostream->local_jpegwriter,MS_JPEG_WRITER_TAKE_SNAPSHOT,(void*)file);
+	}
+	ms_warning("Cannot take local snapshot: no currently running video stream on this call.");
 	return -1;
 #endif
 	return -1;
@@ -1334,6 +1358,24 @@ MSVideoSize linphone_call_params_get_sent_video_size(const LinphoneCallParams *c
 
 MSVideoSize linphone_call_params_get_received_video_size(const LinphoneCallParams *cp) {
 	return cp->recv_vsize;
+}
+
+/**
+ * Gets the framerate of the video that is sent.
+ * @param[in] cp The call parameters.
+ * @return the actual sent framerate in frames per seconds, 0 if not available.
+ */
+float linphone_call_params_get_sent_framerate(const LinphoneCallParams *cp){
+	return cp->sent_fps;
+}
+
+/**
+ * Gets the framerate of the video that is received.
+ * @param[in] cp The call paramaters for which to get the received framerate.
+ * @return the actual received framerate in frames per seconds, 0 if not available.
+ */
+float linphone_call_params_get_received_framerate(const LinphoneCallParams *cp){
+	return cp->received_fps;
 }
 
 const char * linphone_call_params_get_rtp_profile(const LinphoneCallParams *cp) {
@@ -1632,6 +1674,7 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	if (call->audiostream != NULL) return;
 	if (call->sessions[0].rtp_session==NULL){
 		call->audiostream=audiostream=audio_stream_new(call->media_ports[0].rtp_port,call->media_ports[0].rtcp_port,call->af==AF_INET6);
+		rtp_session_set_symmetric_rtp(audiostream->ms.sessions.rtp_session,linphone_core_symmetric_rtp_enabled(lc));
 	}else{
 		call->audiostream=audio_stream_new_with_sessions(&call->sessions[0]);
 	}
@@ -1692,6 +1735,7 @@ void linphone_call_init_video_stream(LinphoneCall *call){
 
 		if (call->sessions[1].rtp_session==NULL){
 			call->videostream=video_stream_new(call->media_ports[1].rtp_port,call->media_ports[1].rtcp_port, call->af==AF_INET6);
+			rtp_session_set_symmetric_rtp(call->videostream->ms.sessions.rtp_session,linphone_core_symmetric_rtp_enabled(lc));
 		}else{
 			call->videostream=video_stream_new_with_sessions(&call->sessions[1]);
 		}
@@ -1885,6 +1929,7 @@ static RtpProfile *make_profile(LinphoneCall *call, const SalMediaDescription *m
 	const LinphoneCallParams *params=&call->params;
 
 	*used_pt=-1;
+
 	if (desc->type==SalAudio)
 		bw=get_ideal_audio_bw(call,md,desc);
 	else if (desc->type==SalVideo)
@@ -1911,6 +1956,7 @@ static RtpProfile *make_profile(LinphoneCall *call, const SalMediaDescription *m
 			first=FALSE;
 		}
 		if (pt->flags & PAYLOAD_TYPE_BITRATE_OVERRIDE){
+			ms_message("Payload type [%s/%i] has explicit bitrate [%i] kbit/s", pt->mime_type, pt->clock_rate, pt->normal_bitrate/1000);
 			pt->normal_bitrate=get_min_bandwidth(pt->normal_bitrate,bw*1000);
 		} else pt->normal_bitrate=bw*1000;
 		if (desc->ptime>0){
@@ -2143,6 +2189,9 @@ static void linphone_call_start_video_stream(LinphoneCall *call, const char *cna
 			video_stream_enable_adaptive_bitrate_control(call->videostream,
 													  linphone_core_adaptive_rate_control_enabled(lc));
 			video_stream_enable_adaptive_jittcomp(call->videostream, linphone_core_video_adaptive_jittcomp_enabled(lc));
+			if (lc->video_conf.preview_vsize.width!=0)
+				video_stream_set_preview_size(call->videostream,lc->video_conf.preview_vsize);
+			video_stream_set_fps(call->videostream,linphone_core_get_preferred_framerate(lc));
 			video_stream_set_sent_video_size(call->videostream,linphone_core_get_preferred_video_size(lc));
 			video_stream_enable_self_view(call->videostream,lc->video_conf.selfview);
 			if (lc->video_window_id!=0)
@@ -2227,11 +2276,15 @@ void linphone_call_start_media_streams(LinphoneCall *call, bool_t all_inputs_mut
 		use_arc=FALSE;
 	}
 #endif
+	ms_message("linphone_call_start_media_streams() call=[%p] local upload_bandwidth=[%i] kbit/s; local download_bandwidth=[%i] kbit/s",
+		   call, linphone_core_get_upload_bandwidth(lc),linphone_core_get_download_bandwidth(lc));
+
 	if (call->audiostream!=NULL) {
 		linphone_call_start_audio_stream(call,cname,all_inputs_muted,send_ringbacktone,use_arc);
 	}
 	call->current_params.has_video=FALSE;
 	if (call->videostream!=NULL) {
+		if (call->audiostream) audio_stream_link_video(call->audiostream,call->videostream);
 		linphone_call_start_video_stream(call,cname,all_inputs_muted);
 	}
 
@@ -2352,7 +2405,7 @@ static void linphone_call_log_fill_stats(LinphoneCallLog *log, MediaStream *st){
 	}
 }
 
-void linphone_call_stop_audio_stream(LinphoneCall *call) {
+static void linphone_call_stop_audio_stream(LinphoneCall *call) {
 	if (call != NULL && call->audiostream!=NULL) {
 		linphone_reporting_update_media_info(call, LINPHONE_CALL_STATS_AUDIO);
 		media_stream_reclaim_sessions(&call->audiostream->ms,&call->sessions[0]);
@@ -2380,7 +2433,7 @@ void linphone_call_stop_audio_stream(LinphoneCall *call) {
 	}
 }
 
-void linphone_call_stop_video_stream(LinphoneCall *call) {
+static void linphone_call_stop_video_stream(LinphoneCall *call) {
 #ifdef VIDEO_ENABLED
 	if (call->videostream!=NULL){
 		linphone_reporting_update_media_info(call, LINPHONE_CALL_STATS_VIDEO);
@@ -2404,6 +2457,8 @@ static void unset_rtp_profile(LinphoneCall *call, int i){
 
 void linphone_call_stop_media_streams(LinphoneCall *call){
 	if (call->audiostream || call->videostream) {
+		if (call->audiostream && call->videostream)
+			audio_stream_unlink_video(call->audiostream, call->videostream);
 		linphone_call_stop_audio_stream(call);
 		linphone_call_stop_video_stream(call);
 
