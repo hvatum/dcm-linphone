@@ -184,11 +184,12 @@ static void linphone_chat_message_process_response_from_post_file(void *data, co
 			belle_http_provider_send_request(msg->chat_room->lc->http_provider,req,l);
 		}
 		if (code == 200 ) { /* file has been uploaded correctly, get server reply and send it */
+			const char *body;
 			/* TODO Check that the transfer has not been cancelled, note this shall be removed once the belle sip API will provide a cancel request as we shall never reach this part if the transfer is actually cancelled */
 			if (msg->http_request == NULL) {
 				return;
 			}
-			const char *body = belle_sip_message_get_body((belle_sip_message_t *)event->response);
+			body = belle_sip_message_get_body((belle_sip_message_t *)event->response);
 			msg->message = ms_strdup(body);
 			linphone_content_uninit(msg->file_transfer_information);
 			ms_free(msg->file_transfer_information);
@@ -994,8 +995,8 @@ static void on_recv_body(belle_sip_user_body_handler_t *bh, belle_sip_message_t 
 		return;
 	}
 	/* call back given by application level */
-	if (lc->vtable.file_transfer_received != NULL) {
-		lc->vtable.file_transfer_received(lc, chatMsg, chatMsg->file_transfer_information, (char *)buffer, size);
+	if (lc->vtable.file_transfer_recv != NULL) {
+		lc->vtable.file_transfer_recv(lc, chatMsg, chatMsg->file_transfer_information, (char *)buffer, size);
 	}
 	return;
 }
@@ -1061,8 +1062,8 @@ static void linphone_chat_process_response_from_get_file(void *data, const belle
 			LinphoneChatMessage* chatMsg=(LinphoneChatMessage *)data;
 			LinphoneCore *lc = chatMsg->chat_room->lc;
 			/* file downloaded succesfully, call again the callback with size at zero */
-			if (lc->vtable.file_transfer_received != NULL) {
-				lc->vtable.file_transfer_received(lc, chatMsg, chatMsg->file_transfer_information, NULL, 0);
+			if (lc->vtable.file_transfer_recv != NULL) {
+				lc->vtable.file_transfer_recv(lc, chatMsg, chatMsg->file_transfer_information, NULL, 0);
 			}
 		}
 	}
