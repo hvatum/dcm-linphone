@@ -570,8 +570,6 @@ static void port_config_set(LinphoneCall *call, int stream_index, int min_port, 
 static void linphone_call_init_common(LinphoneCall *call, LinphoneAddress *from, LinphoneAddress *to){
 	int min_port, max_port;
 	ms_message("New LinphoneCall [%p] initialized (LinphoneCore version: %s)",call,linphone_core_get_version());
-	call->magic=linphone_call_magic;
-	call->refcnt=1;
 	call->state=LinphoneCallIdle;
 	call->transfer_state = LinphoneCallIdle;
 	call->media_start_time=0;
@@ -647,13 +645,61 @@ static void linphone_call_outgoing_select_ip_version(LinphoneCall *call, Linphon
 	}else call->af=AF_INET;
 }
 
+/**
+ * Fill the local ip that routes to the internet according to the destination, or guess it by other special means (upnp).
+ */
+static void linphone_call_get_local_ip(LinphoneCall *call, const LinphoneAddress *remote_addr){
+	const char *ip;
+	int af = call->af;
+	const char *dest = NULL;
+	if (call->dest_proxy == NULL) {
+		struct addrinfo hints;
+		struct addrinfo *res = NULL;
+		int err;
+		const char *domain = linphone_address_get_domain(remote_addr);
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_DGRAM;
+		hints.ai_flags = AI_NUMERICHOST;
+		err = getaddrinfo(domain, NULL, &hints, &res);
+		if (err == 0) {
+			dest = domain;
+		}
+	}
+	if (linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseNatAddress
+		&& (ip=linphone_core_get_nat_address_resolved(call->core))!=NULL){
+		strncpy(call->localip,ip,LINPHONE_IPADDR_SIZE);
+		return;
+	}
+#ifdef BUILD_UPNP
+	else if (call->core->upnp != NULL && linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseUpnp &&
+			linphone_upnp_context_get_state(call->core->upnp) == LinphoneUpnpStateOk) {
+		ip = linphone_upnp_context_get_external_ipaddress(call->core->upnp);
+		strncpy(call->localip,ip,LINPHONE_IPADDR_SIZE);
+		return;
+	}
+#endif //BUILD_UPNP
+	linphone_core_get_local_ip(call->core, af, dest, call->localip);
+}
+
+static void linphone_call_destroy(LinphoneCall *obj);
+
+BELLE_SIP_DECLARE_NO_IMPLEMENTED_INTERFACES(LinphoneCall);
+
+BELLE_SIP_INSTANCIATE_VPTR(LinphoneCall, belle_sip_object_t,
+	(belle_sip_object_destroy_t)linphone_call_destroy,
+	NULL, // clone
+	NULL, // marshal
+	FALSE
+);
+
 LinphoneCall * linphone_call_new_outgoing(struct _LinphoneCore *lc, LinphoneAddress *from, LinphoneAddress *to, const LinphoneCallParams *params, LinphoneProxyConfig *cfg){
-	LinphoneCall *call=ms_new0(LinphoneCall,1);
+	LinphoneCall *call = belle_sip_object_new(LinphoneCall);
 
 	call->dir=LinphoneCallOutgoing;
 	call->core=lc;
 	linphone_call_outgoing_select_ip_version(call,to,cfg);
-	linphone_core_get_local_ip(lc,call->af,call->localip);
+	linphone_call_get_local_ip(call, to);
 	linphone_call_init_common(call,from,to);
 	_linphone_call_params_copy(&call->params,params);
 
@@ -708,7 +754,7 @@ void linphone_call_set_compatible_incoming_call_parameters(LinphoneCall *call, c
 }
 
 LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *from, LinphoneAddress *to, SalOp *op){
-	LinphoneCall *call=ms_new0(LinphoneCall,1);
+	LinphoneCall *call = belle_sip_object_new(LinphoneCall);
 	const SalMediaDescription *md;
 	LinphoneFirewallPolicy fpol;
 
@@ -739,7 +785,7 @@ LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *fro
 	}
 
 	linphone_address_clean(from);
-	linphone_core_get_local_ip(lc,call->af,call->localip);
+	linphone_call_get_local_ip(call, from);
 	linphone_call_init_common(call, from, to);
 	call->log->call_id=ms_strdup(sal_op_get_call_id(op)); /*must be known at that time*/
 	call->dest_proxy = linphone_core_lookup_known_proxy(call->core, to);
@@ -999,7 +1045,6 @@ static void linphone_call_destroy(LinphoneCall *obj)
 	linphone_call_params_uninit(&obj->params);
 	linphone_call_params_uninit(&obj->current_params);
 	sal_error_info_reset(&obj->non_op_error);
-	ms_free(obj);
 }
 
 /**
@@ -1007,27 +1052,13 @@ static void linphone_call_destroy(LinphoneCall *obj)
  * @{
 **/
 
-/**
- * Increments the call 's reference count.
- * An application that wishes to retain a pointer to call object
- * must use this function to unsure the pointer remains
- * valid. Once the application no more needs this pointer,
- * it must call linphone_call_unref().
-**/
 LinphoneCall * linphone_call_ref(LinphoneCall *obj){
-	obj->refcnt++;
+	belle_sip_object_ref(obj);
 	return obj;
 }
 
-/**
- * Decrements the call object reference count.
- * See linphone_call_ref().
-**/
 void linphone_call_unref(LinphoneCall *obj){
-	obj->refcnt--;
-	if (obj->refcnt==0){
-		linphone_call_destroy(obj);
-	}
+	belle_sip_object_unref(obj);
 }
 
 /**
@@ -1148,27 +1179,26 @@ const LinphoneErrorInfo *linphone_call_get_error_info(const LinphoneCall *call){
 }
 
 /**
- * Get the user_pointer in the LinphoneCall
+ * Get the user pointer associated with the LinphoneCall
  *
  * @ingroup call_control
- *
- * return user_pointer an opaque user pointer that can be retrieved at any time
+ * @return  an opaque user pointer that can be retrieved at any time
 **/
-void *linphone_call_get_user_data(LinphoneCall *call)
+void *linphone_call_get_user_data(const LinphoneCall *call)
 {
-	return call->user_pointer;
+	return call->user_data;
 }
 
 /**
- * Set the user_pointer in the LinphoneCall
+ * Set the user pointer associated with the LinphoneCall
  *
  * @ingroup call_control
  *
- * the user_pointer is an opaque user pointer that can be retrieved at any time in the LinphoneCall
+ * the user pointer is an opaque user pointer that can be retrieved at any time in the LinphoneCall
 **/
 void linphone_call_set_user_data(LinphoneCall *call, void *user_pointer)
 {
-	call->user_pointer = user_pointer;
+	call->user_data = user_pointer;
 }
 
 /**
