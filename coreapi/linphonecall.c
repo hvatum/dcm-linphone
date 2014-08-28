@@ -935,7 +935,11 @@ const char *linphone_call_state_to_string(LinphoneCallState cs){
 	return "undefined state";
 }
 
-void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const char *message){
+void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const char *message) {
+	linphone_call_set_state_base(call, cstate, message,FALSE);
+}
+
+void linphone_call_set_state_base(LinphoneCall *call, LinphoneCallState cstate, const char *message,bool_t silently){
 	LinphoneCore *lc=call->core;
 
 	if (call->state!=cstate){
@@ -974,7 +978,7 @@ void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const
 			call->media_start_time=time(NULL);
 		}
 
-		if (lc->vtable.call_state_changed)
+		if (lc->vtable.call_state_changed && !silently)
 			lc->vtable.call_state_changed(lc,call,cstate,message);
 
 		linphone_reporting_call_state_updated(call);
@@ -1342,7 +1346,6 @@ int linphone_call_take_video_snapshot(LinphoneCall *call, const char *file){
 		return ms_filter_call_method(call->videostream->jpegwriter,MS_JPEG_WRITER_TAKE_SNAPSHOT,(void*)file);
 	}
 	ms_warning("Cannot take snapshot: no currently running video stream on this call.");
-	return -1;
 #endif
 	return -1;
 }
@@ -1746,7 +1749,7 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 		Any other value than mic will default to output graph for compatibility */
 	location = lp_config_get_string(lc->config,"sound","eq_location","hp");
 	audiostream->eq_loc = (strcasecmp(location,"mic") == 0) ? MSEqualizerMic : MSEqualizerHP;
-	ms_error("Equalizer location: %s", location);
+	ms_message("Equalizer location: %s", location);
 
 	audio_stream_enable_gain_control(audiostream,TRUE);
 	if (linphone_core_echo_cancellation_enabled(lc)){

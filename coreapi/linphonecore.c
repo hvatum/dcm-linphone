@@ -328,16 +328,20 @@ const char *linphone_call_log_get_ref_key(const LinphoneCallLog *cl){
 }
 
 /**
- * Returns origin (ie from) address of the call.
+ * Returns origin address (ie from) of the call.
+ * @param[in] cl LinphoneCallLog object
+ * @return The origin address (ie from) of the call.
 **/
-LinphoneAddress *linphone_call_log_get_from(LinphoneCallLog *cl){
+LinphoneAddress *linphone_call_log_get_from_address(LinphoneCallLog *cl){
 	return cl->from;
 }
 
 /**
  * Returns destination address (ie to) of the call.
+ * @param[in] cl LinphoneCallLog object
+ * @return The destination address (ie to) of the call.
 **/
-LinphoneAddress *linphone_call_log_get_to(LinphoneCallLog *cl){
+LinphoneAddress *linphone_call_log_get_to_address(LinphoneCallLog *cl){
 	return cl->to;
 }
 
@@ -725,6 +729,7 @@ static void sip_config_read(LinphoneCore *lc)
 		LinphoneProxyConfig *cfg=linphone_proxy_config_new_from_config_file(lc,i);
 		if (cfg!=NULL){
 			linphone_core_add_proxy_config(lc,cfg);
+			linphone_proxy_config_unref(cfg);
 		}else{
 			break;
 		}
@@ -2166,7 +2171,7 @@ static void proxy_update(LinphoneCore *lc){
 			lc->sip_conf.deleted_proxies =ms_list_remove_link(lc->sip_conf.deleted_proxies,elem);
 			ms_message("Proxy config for [%s] is definitely removed from core.",linphone_proxy_config_get_addr(cfg));
 			_linphone_proxy_config_release_ops(cfg);
-			linphone_proxy_config_destroy(cfg);
+			linphone_proxy_config_unref(cfg);
 		}
 	}
 }
@@ -3040,8 +3045,7 @@ void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call){
 	if (md){
 		if (sal_media_description_empty(md) || linphone_core_incompatible_security(lc,md)){
 			sal_call_decline(call->op,SalReasonNotAcceptable,NULL);
-			linphone_call_stop_media_streams(call);
-			linphone_core_del_call(lc,call);
+			linphone_call_set_state_base(call, LinphoneCallError, NULL,TRUE);
 			linphone_call_unref(call);
 			return;
 		}

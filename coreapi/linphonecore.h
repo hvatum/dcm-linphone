@@ -389,8 +389,12 @@ typedef enum _LinphoneMediaEncryption LinphoneMediaEncryption;
 LINPHONE_PUBLIC const char *linphone_media_encryption_to_string(LinphoneMediaEncryption menc);
 
 /*public: */
-LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_from(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_to(LinphoneCallLog *cl);
+/** @deprecated Use linphone_call_log_get_from_address() instead. */
+#define linphone_call_log_get_from(cl) linphone_call_log_get_from_address(cl)
+LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_from_address(LinphoneCallLog *cl);
+/** @deprecated Use linphone_call_log_get_to_address() instead. */
+#define linphone_call_log_get_to(cl) linphone_call_log_get_to_address(cl)
+LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_to_address(LinphoneCallLog *cl);
 LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_remote_address(LinphoneCallLog *cl);
 LINPHONE_PUBLIC	LinphoneCallDir linphone_call_log_get_dir(LinphoneCallLog *cl);
 LINPHONE_PUBLIC	LinphoneCallStatus linphone_call_log_get_status(LinphoneCallLog *cl);
@@ -574,7 +578,6 @@ LINPHONE_PUBLIC void linphone_info_message_add_header(LinphoneInfoMessage *im, c
 LINPHONE_PUBLIC const char *linphone_info_message_get_header(const LinphoneInfoMessage *im, const char *name);
 LINPHONE_PUBLIC void linphone_info_message_set_content(LinphoneInfoMessage *im,  const LinphoneContent *content);
 LINPHONE_PUBLIC const LinphoneContent * linphone_info_message_get_content(const LinphoneInfoMessage *im);
-LINPHONE_PUBLIC const char *linphone_info_message_get_from(const LinphoneInfoMessage *im);
 LINPHONE_PUBLIC void linphone_info_message_destroy(LinphoneInfoMessage *im);
 LINPHONE_PUBLIC LinphoneInfoMessage *linphone_info_message_copy(const LinphoneInfoMessage *orig);
 
@@ -1375,12 +1378,40 @@ LINPHONE_PUBLIC void linphone_core_set_chat_database_path(LinphoneCore *lc, cons
 LINPHONE_PUBLIC	LinphoneChatRoom * linphone_core_create_chat_room(LinphoneCore *lc, const char *to);
 LINPHONE_PUBLIC	LinphoneChatRoom * linphone_core_get_or_create_chat_room(LinphoneCore *lc, const char *to);
 LINPHONE_PUBLIC LinphoneChatRoom *linphone_core_get_chat_room(LinphoneCore *lc, const LinphoneAddress *addr);
+LINPHONE_PUBLIC LinphoneChatRoom *linphone_core_get_chat_room_from_uri(LinphoneCore *lc, const char *to);
 LINPHONE_PUBLIC void linphone_core_disable_chat(LinphoneCore *lc, LinphoneReason deny_reason);
 LINPHONE_PUBLIC void linphone_core_enable_chat(LinphoneCore *lc);
 LINPHONE_PUBLIC bool_t linphone_core_chat_enabled(const LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_chat_room_destroy(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_message(LinphoneChatRoom *cr,const char* message);
 LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_message_2(LinphoneChatRoom *cr, const char* message, const char* external_body_url, LinphoneChatMessageState state, time_t time, bool_t is_read, bool_t is_incoming);
+
+/**
+ * Acquire a reference to the chat room.
+ * @param[in] cr The chat room.
+ * @return The same chat room.
+**/
+LINPHONE_PUBLIC LinphoneChatRoom *linphone_chat_room_ref(LinphoneChatRoom *cr);
+
+/**
+ * Release reference to the chat room.
+ * @param[in] cr The chat room.
+**/
+LINPHONE_PUBLIC void linphone_chat_room_unref(LinphoneChatRoom *cr);
+
+/**
+ * Retrieve the user pointer associated with the chat room.
+ * @param[in] cr The chat room.
+ * @return The user pointer associated with the chat room.
+**/
+LINPHONE_PUBLIC void *linphone_chat_room_get_user_data(const LinphoneChatRoom *cr);
+
+/**
+ * Assign a user pointer to the chat room.
+ * @param[in] cr The chat room.
+ * @param[in] ud The user pointer to associate with the chat room.
+**/
+LINPHONE_PUBLIC void linphone_chat_room_set_user_data(LinphoneChatRoom *cr, void *ud);
 
 /**
  * Create a message attached to a dedicated chat room with a particular content. Use #linphone_chat_room_file_transfer_send to initiate the transfer
@@ -1430,8 +1461,6 @@ LINPHONE_PUBLIC bool_t linphone_chat_room_is_remote_composing(const LinphoneChat
 LINPHONE_PUBLIC int linphone_chat_room_get_unread_messages_count(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_lc(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_core(LinphoneChatRoom *cr);
-LINPHONE_PUBLIC	void linphone_chat_room_set_user_data(LinphoneChatRoom *cr, void * ud);
-LINPHONE_PUBLIC	void * linphone_chat_room_get_user_data(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC MSList* linphone_core_get_chat_rooms(LinphoneCore *lc);
 LINPHONE_PUBLIC unsigned int linphone_chat_message_store(LinphoneChatMessage *msg);
 
@@ -1441,10 +1470,17 @@ LINPHONE_PUBLIC LinphoneChatMessage* linphone_chat_message_clone(const LinphoneC
 LINPHONE_PUBLIC LinphoneChatMessage * linphone_chat_message_ref(LinphoneChatMessage *msg);
 LINPHONE_PUBLIC void linphone_chat_message_unref(LinphoneChatMessage *msg);
 LINPHONE_PUBLIC void linphone_chat_message_destroy(LinphoneChatMessage* msg);
-LINPHONE_PUBLIC void linphone_chat_message_set_from(LinphoneChatMessage* message, const LinphoneAddress* from);
-LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_message_get_from(const LinphoneChatMessage* message);
-LINPHONE_PUBLIC void linphone_chat_message_set_to(LinphoneChatMessage* message, const LinphoneAddress* from);
-LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_message_get_to(const LinphoneChatMessage* message);
+/** @deprecated Use linphone_chat_message_set_from_address() instead. */
+#define linphone_chat_message_set_from(msg, addr) linphone_chat_message_set_from_address(msg, addr)
+LINPHONE_PUBLIC void linphone_chat_message_set_from_address(LinphoneChatMessage* message, const LinphoneAddress* addr);
+/** @deprecated Use linphone_chat_message_get_from_address() instead. */
+#define linphone_chat_message_get_from(msg) linphone_chat_message_get_from_address(msg)
+LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_message_get_from_address(const LinphoneChatMessage* message);
+#define linphone_chat_message_set_to(msg, addr) linphone_chat_message_set_to_address(msg, addr)
+LINPHONE_PUBLIC void linphone_chat_message_set_to_address(LinphoneChatMessage* message, const LinphoneAddress* addr);
+/** @deprecated Use linphone_chat_message_get_to_address() instead. */
+#define linphone_chat_message_get_to(msg) linphone_chat_message_get_to_address(msg)
+LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_message_get_to_address(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_external_body_url(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	void linphone_chat_message_set_external_body_url(LinphoneChatMessage* message,const char* url);
 LINPHONE_PUBLIC	const LinphoneContent* linphone_chat_message_get_file_transfer_information(const LinphoneChatMessage* message);
@@ -2085,11 +2121,16 @@ LINPHONE_PUBLIC	void linphone_core_remove_proxy_config(LinphoneCore *lc, Linphon
 
 LINPHONE_PUBLIC	const MSList *linphone_core_get_proxy_config_list(const LinphoneCore *lc);
 
-LINPHONE_PUBLIC	void linphone_core_set_default_proxy(LinphoneCore *lc, LinphoneProxyConfig *config);
+/** @deprecated Use linphone_core_set_default_proxy_config() instead. */
+#define linphone_core_set_default_proxy(lc, config) linphone_core_set_default_proxy_config(lc, config)
 
 void linphone_core_set_default_proxy_index(LinphoneCore *lc, int index);
 
 LINPHONE_PUBLIC	int linphone_core_get_default_proxy(LinphoneCore *lc, LinphoneProxyConfig **config);
+
+LINPHONE_PUBLIC LinphoneProxyConfig * linphone_core_get_default_proxy_config(LinphoneCore *lc);
+
+LINPHONE_PUBLIC void linphone_core_set_default_proxy_config(LinphoneCore *lc, LinphoneProxyConfig *config);
 
 /**
  * Create an authentication information with default values from Linphone core.
