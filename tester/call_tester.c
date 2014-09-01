@@ -245,7 +245,7 @@ bool_t call_with_params2(LinphoneCoreManager* caller_mgr
 		const LinphoneCallParams* call_param = linphone_call_get_current_params(linphone_core_get_current_call(callee_mgr->lc));
 		CU_ASSERT_EQUAL(linphone_call_params_get_media_encryption(call_param),linphone_core_get_media_encryption(caller_mgr->lc));
 		call_param = linphone_call_get_current_params(linphone_core_get_current_call(caller_mgr->lc));
-		CU_ASSERT_EQUAL(linphone_call_params_get_media_encryption(call_param),linphone_core_get_media_encryption(caller_mgr->lc));
+		CU_ASSERT_EQUAL(linphone_call_params_get_media_encryption(call_param),linphone_core_get_media_encryption(callee_mgr->lc));
 		}
 	}
 	return result;
@@ -270,6 +270,8 @@ static void end_call(LinphoneCoreManager *m1, LinphoneCoreManager *m2){
 	linphone_core_terminate_all_calls(m1->lc);
 	CU_ASSERT_TRUE(wait_for(m1->lc,m2->lc,&m1->stat.number_of_LinphoneCallEnd,1));
 	CU_ASSERT_TRUE(wait_for(m1->lc,m2->lc,&m2->stat.number_of_LinphoneCallEnd,1));
+	CU_ASSERT_TRUE(wait_for(m1->lc,m2->lc,&m1->stat.number_of_LinphoneCallReleased,1));
+	CU_ASSERT_TRUE(wait_for(m1->lc,m2->lc,&m2->stat.number_of_LinphoneCallReleased,1));
 }
 
 static void simple_call(void) {

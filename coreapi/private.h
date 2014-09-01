@@ -111,6 +111,8 @@ struct _LinphoneQualityReporting{
 };
 
 struct _LinphoneCallLog{
+	belle_sip_object_t base;
+	void *user_data;
 	struct _LinphoneCore *lc;
 	LinphoneCallDir dir; /**< The direction of the call*/
 	LinphoneCallStatus status; /**< The status of the call*/
@@ -119,17 +121,16 @@ struct _LinphoneCallLog{
 	char start_date[128]; /**<Human readable string containing the start date*/
 	int duration; /**<Duration of the call in seconds*/
 	char *refkey;
-	void *user_pointer;
 	rtp_stats_t local_stats;
 	rtp_stats_t remote_stats;
 	float quality;
 	time_t start_date_time; /**Start date of the call in seconds as expressed in a time_t */
 	char* call_id; /**unique id of a call*/
-
 	struct _LinphoneQualityReporting reporting;
-
 	bool_t video_enabled;
 };
+
+BELLE_SIP_DECLARE_VPTR(LinphoneCallLog);
 
 
 typedef struct _CallCallbackObj
@@ -229,6 +230,7 @@ struct _LinphoneCall
 	LinphoneCall *referer; /*when this call is the result of a transfer, referer is set to the original call that caused the transfer*/
 	LinphoneCall *transfer_target;/*if this call received a transfer request, then transfer_target points to the new call created to the refer target */
 	int localdesc_changed;/*not a boolean, contains a mask representing changes*/
+	LinphonePlayer *player;
 
 	bool_t refer_pending;
 	bool_t expect_media_in_ack;
@@ -237,15 +239,14 @@ struct _LinphoneCall
 
 	bool_t all_muted; /*this flag is set during early medias*/
 	bool_t playing_ringbacktone;
-	bool_t owns_call_log;
 	bool_t ringing_beep; /* whether this call is ringing through an already existent current call*/
-
 	bool_t auth_token_verified;
+	
 	bool_t defer_update;
-
 	bool_t was_automatically_paused;
 	bool_t ping_replied;
 	bool_t record_active;
+
 	bool_t paused_by_app;
 };
 
@@ -258,10 +259,11 @@ void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const
 void linphone_call_set_contact_op(LinphoneCall* call);
 void linphone_call_set_compatible_incoming_call_parameters(LinphoneCall *call, const SalMediaDescription *md);
 /* private: */
-LinphoneCallLog * linphone_call_log_new(LinphoneCall *call, LinphoneAddress *local, LinphoneAddress * remote);
+LinphoneCallLog * linphone_call_log_new(LinphoneCallDir dir, LinphoneAddress *local, LinphoneAddress * remote);
 void linphone_call_log_completed(LinphoneCall *call);
 void linphone_call_log_destroy(LinphoneCallLog *cl);
 void linphone_call_set_transfer_state(LinphoneCall* call, LinphoneCallState state);
+LinphonePlayer *linphone_call_build_player(LinphoneCall*call);
 
 void linphone_auth_info_write_config(struct _LpConfig *config, LinphoneAuthInfo *obj, int pos);
 
@@ -629,6 +631,7 @@ struct _LinphoneConference{
 	MSAudioEndpoint *record_endpoint;
 	RtpProfile *local_dummy_profile;
 	bool_t local_muted;
+	bool_t terminated;
 };
 
 
@@ -824,6 +827,7 @@ void _linphone_core_codec_config_write(LinphoneCore *lc);
 #ifndef NB_MAX_CALLS
 #define NB_MAX_CALLS	(10)
 #endif
+void call_logs_read_from_config_file(LinphoneCore *lc);
 void call_logs_write_to_config_file(LinphoneCore *lc);
 
 int linphone_core_get_edge_bw(LinphoneCore *lc);
@@ -878,6 +882,23 @@ int linphone_remote_provisioning_download_and_apply(LinphoneCore *lc, const char
 
 
 /*****************************************************************************
+ * Player interface
+ ****************************************************************************/
+
+struct _LinphonePlayer{
+	int (*open)(struct _LinphonePlayer* player, const char *filename);
+	int (*start)(struct _LinphonePlayer* player);
+	int (*pause)(struct _LinphonePlayer* player);
+	int (*seek)(struct _LinphonePlayer* player, int time_ms);
+	MSPlayerState (*get_state)(struct _LinphonePlayer* player);
+	void (*close)(struct _LinphonePlayer* player);
+	LinphonePlayerEofCallback cb;
+	void *user_data;
+	void *impl;
+};
+
+
+/*****************************************************************************
  * XML UTILITY FUNCTIONS                                                     *
  ****************************************************************************/
 
@@ -921,14 +942,15 @@ const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc);
   */
 
 BELLE_SIP_DECLARE_TYPES_BEGIN(linphone,10000)
-BELLE_SIP_TYPE_ID(LinphoneContactSearch),
 BELLE_SIP_TYPE_ID(LinphoneContactProvider),
-BELLE_SIP_TYPE_ID(LinphoneLDAPContactProvider),
-BELLE_SIP_TYPE_ID(LinphoneLDAPContactSearch),
+BELLE_SIP_TYPE_ID(LinphoneContactSearch),
+BELLE_SIP_TYPE_ID(LinphoneCall),
+BELLE_SIP_TYPE_ID(LinphoneCallLog),
 BELLE_SIP_TYPE_ID(LinphoneChatMessage),
 BELLE_SIP_TYPE_ID(LinphoneChatRoom),
-BELLE_SIP_TYPE_ID(LinphoneProxyConfig),
-BELLE_SIP_TYPE_ID(LinphoneCall)
+BELLE_SIP_TYPE_ID(LinphoneLDAPContactProvider),
+BELLE_SIP_TYPE_ID(LinphoneLDAPContactSearch),
+BELLE_SIP_TYPE_ID(LinphoneProxyConfig)
 BELLE_SIP_DECLARE_TYPES_END
 
 

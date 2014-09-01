@@ -292,9 +292,11 @@ LINPHONE_PUBLIC int linphone_payload_type_get_channels(const LinphonePayloadType
 #ifdef IN_LINPHONE
 #include "linphonefriend.h"
 #include "event.h"
+#include "call_log.h"
 #else
 #include "linphone/linphonefriend.h"
 #include "linphone/event.h"
+#include "linphone/call_log.h"
 #endif
 
 LINPHONE_PUBLIC	LinphoneAddress * linphone_address_new(const char *addr);
@@ -333,40 +335,6 @@ struct _SipSetupContext;
 
 
 /**
- * Enum representing the direction of a call.
- * @ingroup call_logs
-**/
-enum _LinphoneCallDir {
-	LinphoneCallOutgoing, /**< outgoing calls*/
-	LinphoneCallIncoming  /**< incoming calls*/
-};
-
-/**
- * Typedef for enum
- * @ingroup call_logs
-**/
-typedef enum _LinphoneCallDir LinphoneCallDir;
-
-/**
- * Enum representing the status of a call
- * @ingroup call_logs
-**/
-typedef enum _LinphoneCallStatus {
-	LinphoneCallSuccess, /**< The call was sucessful*/
-	LinphoneCallAborted, /**< The call was aborted */
-	LinphoneCallMissed, /**< The call was missed (unanswered)*/
-	LinphoneCallDeclined /**< The call was declined, either locally or by remote end*/
-} LinphoneCallStatus;
-
-/**
- * Structure representing a call log.
- *
- * @ingroup call_logs
- *
-**/
-typedef struct _LinphoneCallLog LinphoneCallLog;
-
-/**
  * Enum describing type of media encryption types.
  * @ingroup media_parameters
 **/
@@ -388,32 +356,6 @@ typedef enum _LinphoneMediaEncryption LinphoneMediaEncryption;
 **/
 LINPHONE_PUBLIC const char *linphone_media_encryption_to_string(LinphoneMediaEncryption menc);
 
-/*public: */
-/** @deprecated Use linphone_call_log_get_from_address() instead. */
-#define linphone_call_log_get_from(cl) linphone_call_log_get_from_address(cl)
-LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_from_address(LinphoneCallLog *cl);
-/** @deprecated Use linphone_call_log_get_to_address() instead. */
-#define linphone_call_log_get_to(cl) linphone_call_log_get_to_address(cl)
-LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_to_address(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	LinphoneAddress *linphone_call_log_get_remote_address(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	LinphoneCallDir linphone_call_log_get_dir(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	LinphoneCallStatus linphone_call_log_get_status(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	bool_t linphone_call_log_video_enabled(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	time_t linphone_call_log_get_start_date(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	int linphone_call_log_get_duration(LinphoneCallLog *cl);
-LINPHONE_PUBLIC	float linphone_call_log_get_quality(LinphoneCallLog *cl);
-/** @deprecated Use linphone_call_log_set_user_data() instead. */
-#define linphone_call_log_set_user_pointer(cl, ud) linphone_call_log_set_user_data(cl, ud)
-LINPHONE_PUBLIC	void linphone_call_log_set_user_data(LinphoneCallLog *cl, void *up);
-/** @deprecated Use linphone_call_log_get_user_data() instead. */
-#define linphone_call_log_get_user_pointer(cl) linphone_call_log_get_user_data(cl)
-LINPHONE_PUBLIC	void *linphone_call_log_get_user_data(const LinphoneCallLog *cl);
-void linphone_call_log_set_ref_key(LinphoneCallLog *cl, const char *refkey);
-const char *linphone_call_log_get_ref_key(const LinphoneCallLog *cl);
-LINPHONE_PUBLIC	const rtp_stats_t *linphone_call_log_get_local_stats(const LinphoneCallLog *cl);
-LINPHONE_PUBLIC	const rtp_stats_t *linphone_call_log_get_remote_stats(const LinphoneCallLog *cl);
-LINPHONE_PUBLIC	const char *linphone_call_log_get_call_id(const LinphoneCallLog *cl);
-LINPHONE_PUBLIC	char * linphone_call_log_to_str(LinphoneCallLog *cl);
 
 /**
  * Private structure definition for LinphoneCallParams.
@@ -704,6 +646,27 @@ LINPHONE_PUBLIC uint64_t linphone_call_stats_get_late_packets_cumulative_number(
 typedef void (*LinphoneCallCbFunc)(LinphoneCall *call,void * user_data);
 
 /**
+ * Player interface.
+ * @ingroup call_control
+**/
+typedef struct _LinphonePlayer LinphonePlayer;
+
+/**
+ * Callback for notifying end of play (file).
+ * @param obj the LinphonePlayer
+ * @param user_data the user_data provided when calling linphone_player_open().
+ * @ingroup call_control
+**/
+typedef void (*LinphonePlayerEofCallback)(struct _LinphonePlayer *obj, void *user_data);
+
+int linphone_player_open(LinphonePlayer *obj, const char *filename, LinphonePlayerEofCallback, void *user_data);
+int linphone_player_start(LinphonePlayer *obj);
+int linphone_player_pause(LinphonePlayer *obj);
+int linphone_player_seek(LinphonePlayer *obj, int time_ms);
+MSPlayerState linphone_player_get_state(LinphonePlayer *obj);
+void linphone_player_close(LinphonePlayer *obj);
+
+/**
  * LinphoneCallState enum represents the different state a call can reach into.
  * The application is notified of state changes through the LinphoneCoreVTable::call_state_changed callback.
  * @ingroup call_control
@@ -770,7 +733,15 @@ LINPHONE_PUBLIC void linphone_call_set_user_data(LinphoneCall *call, void *ud);
 LINPHONE_PUBLIC LinphoneCore *linphone_call_get_core(const LinphoneCall *call);
 LINPHONE_PUBLIC	LinphoneCallState linphone_call_get_state(const LinphoneCall *call);
 LINPHONE_PUBLIC bool_t linphone_call_asked_to_autoanswer(LinphoneCall *call);
+
+/**
+ * Get the remote address of the current call.
+ * @param[in] lc LinphoneCore object.
+ * @return The remote address of the current call or NULL if there is no current call.
+ * @ingroup call_control
+ */
 LINPHONE_PUBLIC	const LinphoneAddress * linphone_core_get_current_call_remote_address(LinphoneCore *lc);
+
 LINPHONE_PUBLIC	const LinphoneAddress * linphone_call_get_remote_address(const LinphoneCall *call);
 LINPHONE_PUBLIC	char *linphone_call_get_remote_address_as_string(const LinphoneCall *call);
 LINPHONE_PUBLIC	LinphoneCallDir linphone_call_get_dir(const LinphoneCall *call);
@@ -808,6 +779,7 @@ LINPHONE_PUBLIC LinphoneCallState linphone_call_get_transfer_state(LinphoneCall 
 LINPHONE_PUBLIC void linphone_call_zoom_video(LinphoneCall* call, float zoom_factor, float* cx, float* cy);
 LINPHONE_PUBLIC	void linphone_call_start_recording(LinphoneCall *call);
 LINPHONE_PUBLIC	void linphone_call_stop_recording(LinphoneCall *call);
+LINPHONE_PUBLIC LinphonePlayer * linphone_call_get_player(LinphoneCall *call);
 
 /**
  * Return TRUE if this call is currently part of a conference
@@ -1903,7 +1875,16 @@ LINPHONE_PUBLIC	int linphone_core_transfer_call_to_another(LinphoneCore *lc, Lin
 
 LINPHONE_PUBLIC LinphoneCall * linphone_core_start_refered_call(LinphoneCore *lc, LinphoneCall *call, const LinphoneCallParams *params);
 
-LINPHONE_PUBLIC	bool_t linphone_core_inc_invite_pending(LinphoneCore*lc);
+/** @deprecated Use linphone_core_is_incoming_invite_pending() instead. */
+#define linphone_core_inc_invite_pending(lc) linphone_core_is_incoming_invite_pending(lc)
+
+/**
+ * Tells whether there is an incoming invite pending.
+ * @ingroup call_control
+ * @param[in] lc LinphoneCore object
+ * @return A boolean telling whether an incoming invite is pending or not.
+ */
+LINPHONE_PUBLIC	bool_t linphone_core_is_incoming_invite_pending(LinphoneCore*lc);
 
 LINPHONE_PUBLIC bool_t linphone_core_in_call(const LinphoneCore *lc);
 
@@ -2440,34 +2421,54 @@ bool_t linphone_core_get_rtp_no_xmit_on_audio_mute(const LinphoneCore *lc);
 void linphone_core_set_rtp_no_xmit_on_audio_mute(LinphoneCore *lc, bool_t val);
 
 
-/* returns a list of LinphoneCallLog */
-LINPHONE_PUBLIC	const MSList * linphone_core_get_call_logs(LinphoneCore *lc);
-LINPHONE_PUBLIC	void linphone_core_clear_call_logs(LinphoneCore *lc);
+/*******************************************************************************
+ * Call log related functions                                                  *
+ ******************************************************************************/
+
+/**
+ * @addtogroup call_logs
+ * @{
+**/
+
+/**
+ * Get the list of call logs (past calls).
+ * @param[in] lc LinphoneCore object
+ * @return \mslist{LinphoneCallLog}
+**/
+LINPHONE_PUBLIC const MSList * linphone_core_get_call_logs(LinphoneCore *lc);
+
+/**
+ * Erase the call log.
+ * @param[in] lc LinphoneCore object
+**/
+LINPHONE_PUBLIC void linphone_core_clear_call_logs(LinphoneCore *lc);
 
 /**
  * Get the number of missed calls.
  * Once checked, this counter can be reset with linphone_core_reset_missed_calls_count().
  * @param[in] lc #LinphoneCore object.
  * @returns The number of missed calls.
- * @ingroup call_logs
 **/
-LINPHONE_PUBLIC	int linphone_core_get_missed_calls_count(LinphoneCore *lc);
+LINPHONE_PUBLIC int linphone_core_get_missed_calls_count(LinphoneCore *lc);
 
 /**
  * Reset the counter of missed calls.
  * @param[in] lc #LinphoneCore object.
- * @ingroup call_logs
 **/
-LINPHONE_PUBLIC	void linphone_core_reset_missed_calls_count(LinphoneCore *lc);
+LINPHONE_PUBLIC void linphone_core_reset_missed_calls_count(LinphoneCore *lc);
 
 /**
  * Remove a specific call log from call history list.
  * This function destroys the call log object. It must not be accessed anymore by the application after calling this function.
  * @param[in] lc #LinphoneCore object
  * @param[in] call_log #LinphoneCallLog object to remove.
- * @ingroup call_logs
 **/
-LINPHONE_PUBLIC	void linphone_core_remove_call_log(LinphoneCore *lc, LinphoneCallLog *call_log);
+LINPHONE_PUBLIC void linphone_core_remove_call_log(LinphoneCore *lc, LinphoneCallLog *call_log);
+
+/**
+ * @}
+**/
+
 
 /* video support */
 LINPHONE_PUBLIC bool_t linphone_core_video_supported(LinphoneCore *lc);
@@ -2636,8 +2637,10 @@ LINPHONE_PUBLIC int linphone_core_get_camera_sensor_rotation(LinphoneCore *lc);
 /* start or stop streaming video in case of embedded window */
 void linphone_core_show_video(LinphoneCore *lc, bool_t show);
 
+/** @deprecated Use linphone_core_set_use_files() instead. */
+#define linphone_core_use_files(lc, yesno) linphone_core_set_use_files(lc, yesno)
 /*play/record support: use files instead of soundcard*/
-LINPHONE_PUBLIC void linphone_core_use_files(LinphoneCore *lc, bool_t yesno);
+LINPHONE_PUBLIC void linphone_core_set_use_files(LinphoneCore *lc, bool_t yesno);
 LINPHONE_PUBLIC void linphone_core_set_play_file(LinphoneCore *lc, const char *file);
 LINPHONE_PUBLIC void linphone_core_set_record_file(LinphoneCore *lc, const char *file);
 
