@@ -39,7 +39,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #ifdef HAVE_CONFIG_H
-#include "liblinphone_gitversion.h"
+#include "config.h"
+#ifndef ANDROID /*on Android LIBLINPHONE version is passed from root Makefile*/
+	#include "liblinphone_gitversion.h"
+#endif
 #else
 #ifndef LIBLINPHONE_GIT_VERSION
 #define LIBLINPHONE_GIT_VERSION "unknown"
@@ -1597,28 +1600,8 @@ int linphone_core_get_sip_port(LinphoneCore *lc)
 	return tr.udp_port>0 ? tr.udp_port : (tr.tcp_port > 0 ? tr.tcp_port : tr.tls_port);
 }
 
-#if !USE_BELLE_SIP
 static char _ua_name[64]="Linphone";
-static char _ua_version[64]=LINPHONE_VERSION;
-#endif
-
-#if HAVE_EXOSIP_GET_VERSION && !USE_BELLESIP
-extern const char *eXosip_get_version();
-#endif
-
-static void apply_user_agent(LinphoneCore *lc){
-#if !USE_BELLESIP /*default user agent is handled at sal level*/
-	char ua_string[256];
-	snprintf(ua_string,sizeof(ua_string)-1,"%s/%s (eXosip2/%s)",_ua_name,_ua_version,
-#if HAVE_EXOSIP_GET_VERSION
-		 eXosip_get_version()
-#else
-		 "unknown"
-#endif
-	);
-	if (lc->sal) sal_set_user_agent(lc->sal,ua_string);
-#endif
-}
+static char _ua_version[64]=LIBLINPHONE_VERSION;
 
 /**
  * Sets the user agent string used in SIP messages.
@@ -1626,27 +1609,15 @@ static void apply_user_agent(LinphoneCore *lc){
  * @ingroup misc
 **/
 void linphone_core_set_user_agent(LinphoneCore *lc, const char *name, const char *ver){
-#if USE_BELLESIP
 	char ua_string[256];
 	snprintf(ua_string, sizeof(ua_string) - 1, "%s/%s", name?name:"", ver?ver:"");
 	if (lc->sal) {
 		sal_set_user_agent(lc->sal, ua_string);
 		sal_append_stack_string_to_user_agent(lc->sal);
 	}
-#else
-	strncpy(_ua_name,name,sizeof(_ua_name)-1);
-	strncpy(_ua_version,ver,sizeof(_ua_version));
-	apply_user_agent(lc);
-#endif
 }
 const char *linphone_core_get_user_agent(LinphoneCore *lc){
-#if USE_BELLESIP
 	return sal_get_user_agent(lc->sal);
-#else
-	static char ua_buffer[255] = {0};
-	snprintf(ua_buffer, "%s/%s", _ua_name, _ua_version, 254);
-	return ua_buffer;
-#endif
 }
 
 const char *linphone_core_get_user_agent_name(void){
@@ -1704,7 +1675,6 @@ static int apply_transports(LinphoneCore *lc){
 			}
 		}
 	}
-	apply_user_agent(lc);
 	return 0;
 }
 
@@ -2237,7 +2207,7 @@ LinphoneCall * linphone_core_start_refered_call(LinphoneCore *lc, LinphoneCall *
 	}
 
 	if (!params){
-		cp->has_video = call->current_params.has_video; /*start the call to refer-target with video enabled if original call had video*/
+		cp->has_video = call->current_params->has_video; /*start the call to refer-target with video enabled if original call had video*/
 	}
 	cp->referer=call;
 	ms_message("Starting new call to refered address %s",call->refer_to);
@@ -2819,7 +2789,7 @@ int linphone_core_accept_early_media_with_params(LinphoneCore* lc, LinphoneCall*
 
 		// if parameters are passed, update the media description
 		if ( params ) {
-			_linphone_call_params_copy ( &call->params,params );
+			call->params = linphone_call_params_copy(params);
 			linphone_call_make_local_media_description ( lc,call );
 			sal_call_set_local_media_description ( call->op,call->localdesc );
 			sal_op_set_sent_custom_header ( call->op,params->custom_headers );
@@ -2860,7 +2830,7 @@ int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call){
 		linphone_core_update_local_media_description_from_upnp(call->localdesc, call->upnp_session);
 	}
 #endif //BUILD_UPNP
-	if (call->params.in_conference){
+	if (call->params->in_conference){
 		subject="Conference";
 	}else{
 		subject="Media change";
@@ -2909,7 +2879,7 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 	if (params!=NULL){
 		linphone_call_set_state(call,LinphoneCallUpdating,"Updating call");
 #if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
-		has_video = call->params.has_video;
+		has_video = call->params->has_video;
 
 		// Video removing
 		if((call->videostream != NULL) && !params->has_video) {
@@ -2923,7 +2893,7 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 		}
 #endif /* defined(VIDEO_ENABLED) && defined(BUILD_UPNP) */
 
-		_linphone_call_params_copy(&call->params,params);
+		call->params = linphone_call_params_copy(params);
 		err=linphone_call_prepare_ice(call,FALSE);
 		if (err==1) {
 			ms_message("Defer call update to gather ICE candidates");
@@ -2932,7 +2902,7 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 
 #if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
 		// Video adding
-		if (!has_video && call->params.has_video) {
+		if (!has_video && call->params->has_video) {
 			if(call->upnp_session != NULL) {
 				ms_message("Defer call update to add uPnP port mappings");
 				video_stream_prepare_video(call->videostream);
@@ -3039,7 +3009,7 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 	SalMediaDescription *remote_desc;
 	bool_t keep_sdp_version;
 #if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
-	bool_t old_has_video = call->params.has_video;
+	bool_t old_has_video = call->params->has_video;
 #endif
 
 	remote_desc = sal_call_get_remote_media_description(call->op);
@@ -3052,19 +3022,19 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 		return 0;
 	}
 	if (params==NULL){
-		call->params.has_video=lc->video_policy.automatically_accept || call->current_params.has_video;
+		call->params->has_video=lc->video_policy.automatically_accept || call->current_params->has_video;
 	}else
-		_linphone_call_params_copy(&call->params,params);
+		call->params = linphone_call_params_copy(params);
 
-	if (call->params.has_video && !linphone_core_video_enabled(lc)){
+	if (call->params->has_video && !linphone_core_video_enabled(lc)){
 		ms_warning("linphone_core_accept_call_update(): requested video but video support is globally disabled. Refusing video.");
-		call->params.has_video=FALSE;
+		call->params->has_video=FALSE;
 	}
-	if (call->current_params.in_conference) {
+	if (call->current_params->in_conference) {
 		ms_warning("Video isn't supported in conference");
-		call->params.has_video = FALSE;
+		call->params->has_video = FALSE;
 	}
-	call->params.has_video &= linphone_core_media_description_contains_video_stream(remote_desc);
+	call->params->has_video &= linphone_core_media_description_contains_video_stream(remote_desc);
 	linphone_call_init_media_streams(call); /*so that video stream is initialized if necessary*/
 	if (call->ice_session != NULL) {
 		if (linphone_call_prepare_ice(call,TRUE)==1)
@@ -3075,7 +3045,7 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 	if(call->upnp_session != NULL) {
 		linphone_core_update_upnp_from_remote_media_description(call, sal_call_get_remote_media_description(call->op));
 #ifdef VIDEO_ENABLED
-		if ((call->params.has_video) && (call->params.has_video != old_has_video)) {
+		if ((call->params->has_video) && (call->params->has_video != old_has_video)) {
 			video_stream_prepare_video(call->videostream);
 			if (linphone_core_update_upnp(lc, call)<0) {
 				/* uPnP update failed, proceed with the call anyway. */
@@ -3169,7 +3139,7 @@ int linphone_core_accept_call_with_params(LinphoneCore *lc, LinphoneCall *call, 
 	linphone_call_set_contact_op(call);
 	if (params){
 		const SalMediaDescription *md = sal_call_get_remote_media_description(call->op);
-		_linphone_call_params_copy(&call->params,params);
+		call->params = linphone_call_params_copy(params);
 		// There might not be a md if the INVITE was lacking an SDP
 		// In this case we use the parameters as is.
 		if (md) {
@@ -3474,7 +3444,7 @@ int linphone_core_resume_call(LinphoneCore *lc, LinphoneCall *call){
 		ms_warning("we cannot resume a call that has not been established and paused before");
 		return -1;
 	}
-	if (call->params.in_conference==FALSE){
+	if (call->params->in_conference==FALSE){
 		if (linphone_core_sound_resources_locked(lc)){
 			ms_warning("Cannot resume call %p because another call is locking the sound resources.",call);
 			return -1;
@@ -3497,12 +3467,12 @@ int linphone_core_resume_call(LinphoneCore *lc, LinphoneCall *call){
 #endif //BUILD_UPNP
 	sal_call_set_local_media_description(call->op,call->localdesc);
 	sal_media_description_set_dir(call->localdesc,SalStreamSendRecv);
-	if (call->params.in_conference && !call->current_params.in_conference) subject="Conference";
+	if (call->params->in_conference && !call->current_params->in_conference) subject="Conference";
 	if(sal_call_update(call->op,subject) != 0){
 		return -1;
 	}
 	linphone_call_set_state(call,LinphoneCallResuming,"Resuming");
-	if (call->params.in_conference==FALSE)
+	if (call->params->in_conference==FALSE)
 		lc->current_call=call;
 	snprintf(temp,sizeof(temp)-1,"Resuming the call with %s",linphone_call_get_remote_address_as_string(call));
 	if (lc->vtable.display_status)
@@ -5722,14 +5692,8 @@ static void linphone_core_uninit(LinphoneCore *lc)
 	}
 #endif //BUILD_UPNP
 
-	if (lc->chatrooms){
-		MSList *cr=ms_list_copy(lc->chatrooms);
-		MSList *elem;
-		for(elem=cr;elem!=NULL;elem=elem->next){
-			linphone_chat_room_destroy((LinphoneChatRoom*)elem->data);
-		}
-		ms_list_free(cr);
-	}
+	ms_list_for_each(lc->chatrooms, (MSIterateFunc)linphone_chat_room_release);
+	lc->chatrooms = ms_list_free(lc->chatrooms);
 
 	if (lp_config_needs_commit(lc->config)) lp_config_sync(lc->config);
 	lp_config_destroy(lc->config);
@@ -5981,7 +5945,7 @@ LinphoneGlobalState linphone_core_get_global_state(const LinphoneCore *lc){
 }
 
 LinphoneCallParams *linphone_core_create_default_call_parameters(LinphoneCore *lc){
-	LinphoneCallParams *p=ms_new0(LinphoneCallParams,1);
+	LinphoneCallParams *p=linphone_call_params_new();
 	linphone_core_init_default_params(lc, p);
 	return p;
 }
@@ -5996,7 +5960,7 @@ LinphoneCallParams *linphone_core_create_default_call_parameters(LinphoneCore *l
  */
 LinphoneCallParams *linphone_core_create_call_params(LinphoneCore *lc, LinphoneCall *call){
 	if (!call) return linphone_core_create_default_call_parameters(lc);
-	return linphone_call_params_copy(&call->params);
+	return linphone_call_params_copy(call->params);
 }
 
 const char *linphone_reason_to_string(LinphoneReason err){

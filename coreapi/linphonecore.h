@@ -285,58 +285,9 @@ LINPHONE_PUBLIC char * linphone_payload_type_get_mime_type(const LinphonePayload
  */
 LINPHONE_PUBLIC int linphone_payload_type_get_channels(const LinphonePayloadType *pt);
 
-/**
- * @}
-**/
-
-#ifdef IN_LINPHONE
-#include "linphonefriend.h"
-#include "event.h"
-#include "call_log.h"
-#else
-#include "linphone/linphonefriend.h"
-#include "linphone/event.h"
-#include "linphone/call_log.h"
-#endif
-
-LINPHONE_PUBLIC	LinphoneAddress * linphone_address_new(const char *addr);
-LINPHONE_PUBLIC LinphoneAddress * linphone_address_clone(const LinphoneAddress *addr);
-LINPHONE_PUBLIC LinphoneAddress * linphone_address_ref(LinphoneAddress *addr);
-LINPHONE_PUBLIC void linphone_address_unref(LinphoneAddress *addr);
-LINPHONE_PUBLIC const char *linphone_address_get_scheme(const LinphoneAddress *u);
-LINPHONE_PUBLIC	const char *linphone_address_get_display_name(const LinphoneAddress* u);
-LINPHONE_PUBLIC	const char *linphone_address_get_username(const LinphoneAddress *u);
-LINPHONE_PUBLIC	const char *linphone_address_get_domain(const LinphoneAddress *u);
-LINPHONE_PUBLIC int linphone_address_get_port(const LinphoneAddress *u);
-LINPHONE_PUBLIC	void linphone_address_set_display_name(LinphoneAddress *u, const char *display_name);
-LINPHONE_PUBLIC	void linphone_address_set_username(LinphoneAddress *uri, const char *username);
-LINPHONE_PUBLIC	void linphone_address_set_domain(LinphoneAddress *uri, const char *host);
-LINPHONE_PUBLIC	void linphone_address_set_port(LinphoneAddress *uri, int port);
-/*remove tags, params etc... so that it is displayable to the user*/
-LINPHONE_PUBLIC	void linphone_address_clean(LinphoneAddress *uri);
-LINPHONE_PUBLIC bool_t linphone_address_is_secure(const LinphoneAddress *uri);
-LINPHONE_PUBLIC LinphoneTransportType linphone_address_get_transport(const LinphoneAddress *uri);
-LINPHONE_PUBLIC void linphone_address_set_transport(LinphoneAddress *uri,LinphoneTransportType type);
-LINPHONE_PUBLIC	char *linphone_address_as_string(const LinphoneAddress *u);
-LINPHONE_PUBLIC	char *linphone_address_as_string_uri_only(const LinphoneAddress *u);
-LINPHONE_PUBLIC	bool_t linphone_address_weak_equal(const LinphoneAddress *a1, const LinphoneAddress *a2);
-LINPHONE_PUBLIC	void linphone_address_destroy(LinphoneAddress *u);
-
-/**
- * Create a #LinphoneAddress object by parsing the user supplied address, given as a string.
- * @param[in] lc #LinphoneCore object
- * @param[in] address String containing the user supplied address
- * @return The create #LinphoneAddress object
- * @ingroup linphone_address
- */
-LINPHONE_PUBLIC LinphoneAddress * linphone_core_create_address(LinphoneCore *lc, const char *address);
-
-struct _SipSetupContext;
-
 
 /**
  * Enum describing type of media encryption types.
- * @ingroup media_parameters
 **/
 enum _LinphoneMediaEncryption {
 	LinphoneMediaEncryptionNone, /**< No media encryption is used */
@@ -346,104 +297,17 @@ enum _LinphoneMediaEncryption {
 
 /**
  * Enum describing type of media encryption types.
- * @ingroup media_parameters
 **/
 typedef enum _LinphoneMediaEncryption LinphoneMediaEncryption;
 
 /**
  * Convert enum member to string.
- * @ingroup media_parameters
 **/
 LINPHONE_PUBLIC const char *linphone_media_encryption_to_string(LinphoneMediaEncryption menc);
 
-
 /**
- * Private structure definition for LinphoneCallParams.
- * @ingroup call_control
+ * @}
 **/
-struct _LinphoneCallParams;
-
-/**
- * The LinphoneCallParams is an object containing various call related parameters.
- * It can be used to retrieve parameters from a currently running call or modify the call's characteristics
- * dynamically.
- * @ingroup call_control
-**/
-typedef struct _LinphoneCallParams LinphoneCallParams;
-
-LINPHONE_PUBLIC	const LinphonePayloadType* linphone_call_params_get_used_audio_codec(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	const LinphonePayloadType* linphone_call_params_get_used_video_codec(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	LinphoneCallParams * linphone_call_params_copy(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	void linphone_call_params_enable_video(LinphoneCallParams *cp, bool_t enabled);
-LINPHONE_PUBLIC	bool_t linphone_call_params_video_enabled(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	LinphoneMediaEncryption linphone_call_params_get_media_encryption(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	void linphone_call_params_set_media_encryption(LinphoneCallParams *cp, LinphoneMediaEncryption e);
-LINPHONE_PUBLIC	void linphone_call_params_enable_early_media_sending(LinphoneCallParams *cp, bool_t enabled);
-LINPHONE_PUBLIC	bool_t linphone_call_params_early_media_sending_enabled(const LinphoneCallParams *cp);
-#define linphone_call_params_local_conference_mode linphone_call_params_get_local_conference_mode	/* Deprecated */
-LINPHONE_PUBLIC	bool_t linphone_call_params_get_local_conference_mode(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	void linphone_call_params_set_audio_bandwidth_limit(LinphoneCallParams *cp, int bw);
-LINPHONE_PUBLIC	void linphone_call_params_destroy(LinphoneCallParams *cp);
-LINPHONE_PUBLIC	bool_t linphone_call_params_low_bandwidth_enabled(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC	void linphone_call_params_enable_low_bandwidth(LinphoneCallParams *cp, bool_t enabled);
-LINPHONE_PUBLIC	void linphone_call_params_set_record_file(LinphoneCallParams *cp, const char *path);
-LINPHONE_PUBLIC	const char *linphone_call_params_get_record_file(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC const char *linphone_call_params_get_session_name(const LinphoneCallParams *cp);
-LINPHONE_PUBLIC void linphone_call_params_set_session_name(LinphoneCallParams *cp, const char *subject);
-
-/**
- * Add a custom SIP header in the INVITE for a call.
- * @param[in] params The #LinphoneCallParams to add a custom SIP header to.
- * @param[in] header_name The name of the header to add.
- * @param[in] header_value The content of the header to add.
- * @ingroup call_control
-**/
-LINPHONE_PUBLIC	void linphone_call_params_add_custom_header(LinphoneCallParams *params, const char *header_name, const char *header_value);
-
-/**
- * Get a custom SIP header.
- * @param[in] params The #LinphoneCallParams to get the custom SIP header from.
- * @param[in] header_name The name of the header to get.
- * @returns The content of the header or NULL if not found.
- * @ingroup call_control
-**/
-LINPHONE_PUBLIC	const char *linphone_call_params_get_custom_header(const LinphoneCallParams *params, const char *header_name);
-
-/**
- * Gets the size of the video that is sent.
- * @param[in] cp The call parameters for which to get the sent video size.
- * @return The sent video size or MS_VIDEO_SIZE_UNKNOWN if not available.
- */
-LINPHONE_PUBLIC MSVideoSize linphone_call_params_get_sent_video_size(const LinphoneCallParams *cp);
-
-/**
- * Gets the size of the video that is received.
- * @param[in] cp The call paramaters for which to get the received video size.
- * @return The received video size or MS_VIDEO_SIZE_UNKNOWN if not available.
- */
-LINPHONE_PUBLIC MSVideoSize linphone_call_params_get_received_video_size(const LinphoneCallParams *cp);
-
-
-/**
- * Gets the framerate of the video that is sent.
- * @param[in] cp The call parameters.
- * @return the actual sent framerate in frames per seconds, 0 if not available.
- */
-LINPHONE_PUBLIC float linphone_call_params_get_sent_framerate(const LinphoneCallParams *cp);
-
-/**
- * Gets the framerate of the video that is received.
- * @param[in] cp The call paramaters for which to get the received framerate.
- * @return the actual received framerate in frames per seconds, 0 if not available.
- */
-LINPHONE_PUBLIC float linphone_call_params_get_received_framerate(const LinphoneCallParams *cp);
-
-/**
- * Gets the RTP profile being used.
- * @param[in] cp #LinphoneCallParams object
- * @returns The RTP profile.
- */
-LINPHONE_PUBLIC const char * linphone_call_params_get_rtp_profile(const LinphoneCallParams *cp);
 
 
 /*
@@ -504,8 +368,53 @@ typedef unsigned int LinphonePrivacyMask;
 
 
 LINPHONE_PUBLIC const char* linphone_privacy_to_string(LinphonePrivacy privacy);
-LINPHONE_PUBLIC void linphone_call_params_set_privacy(LinphoneCallParams *params, LinphonePrivacyMask privacy);
-LINPHONE_PUBLIC LinphonePrivacyMask linphone_call_params_get_privacy(const LinphoneCallParams *params);
+
+
+#ifdef IN_LINPHONE
+#include "linphonefriend.h"
+#include "event.h"
+#include "call_log.h"
+#include "call_params.h"
+#else
+#include "linphone/linphonefriend.h"
+#include "linphone/event.h"
+#include "linphone/call_log.h"
+#include "linphone/call_params.h"
+#endif
+
+LINPHONE_PUBLIC	LinphoneAddress * linphone_address_new(const char *addr);
+LINPHONE_PUBLIC LinphoneAddress * linphone_address_clone(const LinphoneAddress *addr);
+LINPHONE_PUBLIC LinphoneAddress * linphone_address_ref(LinphoneAddress *addr);
+LINPHONE_PUBLIC void linphone_address_unref(LinphoneAddress *addr);
+LINPHONE_PUBLIC const char *linphone_address_get_scheme(const LinphoneAddress *u);
+LINPHONE_PUBLIC	const char *linphone_address_get_display_name(const LinphoneAddress* u);
+LINPHONE_PUBLIC	const char *linphone_address_get_username(const LinphoneAddress *u);
+LINPHONE_PUBLIC	const char *linphone_address_get_domain(const LinphoneAddress *u);
+LINPHONE_PUBLIC int linphone_address_get_port(const LinphoneAddress *u);
+LINPHONE_PUBLIC	void linphone_address_set_display_name(LinphoneAddress *u, const char *display_name);
+LINPHONE_PUBLIC	void linphone_address_set_username(LinphoneAddress *uri, const char *username);
+LINPHONE_PUBLIC	void linphone_address_set_domain(LinphoneAddress *uri, const char *host);
+LINPHONE_PUBLIC	void linphone_address_set_port(LinphoneAddress *uri, int port);
+/*remove tags, params etc... so that it is displayable to the user*/
+LINPHONE_PUBLIC	void linphone_address_clean(LinphoneAddress *uri);
+LINPHONE_PUBLIC bool_t linphone_address_is_secure(const LinphoneAddress *uri);
+LINPHONE_PUBLIC LinphoneTransportType linphone_address_get_transport(const LinphoneAddress *uri);
+LINPHONE_PUBLIC void linphone_address_set_transport(LinphoneAddress *uri,LinphoneTransportType type);
+LINPHONE_PUBLIC	char *linphone_address_as_string(const LinphoneAddress *u);
+LINPHONE_PUBLIC	char *linphone_address_as_string_uri_only(const LinphoneAddress *u);
+LINPHONE_PUBLIC	bool_t linphone_address_weak_equal(const LinphoneAddress *a1, const LinphoneAddress *a2);
+LINPHONE_PUBLIC	void linphone_address_destroy(LinphoneAddress *u);
+
+/**
+ * Create a #LinphoneAddress object by parsing the user supplied address, given as a string.
+ * @param[in] lc #LinphoneCore object
+ * @param[in] address String containing the user supplied address
+ * @return The create #LinphoneAddress object
+ * @ingroup linphone_address
+ */
+LINPHONE_PUBLIC LinphoneAddress * linphone_core_create_address(LinphoneCore *lc, const char *address);
+
+struct _SipSetupContext;
 
 
 struct _LinphoneInfoMessage;
@@ -641,6 +550,10 @@ LINPHONE_PUBLIC float linphone_call_stats_get_receiver_loss_rate(const LinphoneC
 LINPHONE_PUBLIC float linphone_call_stats_get_sender_interarrival_jitter(const LinphoneCallStats *stats, LinphoneCall *call);
 LINPHONE_PUBLIC float linphone_call_stats_get_receiver_interarrival_jitter(const LinphoneCallStats *stats, LinphoneCall *call);
 LINPHONE_PUBLIC uint64_t linphone_call_stats_get_late_packets_cumulative_number(const LinphoneCallStats *stats, LinphoneCall *call);
+LINPHONE_PUBLIC float linphone_call_stats_get_download_bandwidth(const LinphoneCallStats *stats);
+LINPHONE_PUBLIC float linphone_call_stats_get_upload_bandwidth(const LinphoneCallStats *stats);
+LINPHONE_PUBLIC LinphoneIceState linphone_call_stats_get_ice_state(const LinphoneCallStats *stats);
+LINPHONE_PUBLIC LinphoneUpnpState linphone_call_stats_get_upnp_state(const LinphoneCallStats *stats);
 
 /** Callback prototype */
 typedef void (*LinphoneCallCbFunc)(LinphoneCall *call,void * user_data);
