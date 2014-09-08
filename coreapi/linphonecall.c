@@ -1563,7 +1563,11 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	if (lc->rtptf){
 		RtpTransport *artp=lc->rtptf->audio_rtp_func(lc->rtptf->audio_rtp_func_data, call->media_ports[0].rtp_port);
 		RtpTransport *artcp=lc->rtptf->audio_rtcp_func(lc->rtptf->audio_rtcp_func_data, call->media_ports[0].rtcp_port);
-		rtp_session_set_transports(audiostream->ms.sessions.rtp_session,artp,artcp);
+		RtpTransport *meta_rtp;
+		RtpTransport *meta_rtcp;
+		meta_rtp_transport_new(&meta_rtp,TRUE,artp, 0);
+		meta_rtp_transport_new(&meta_rtcp,FALSE,artcp, 0);
+		rtp_session_set_transports(audiostream->ms.sessions.rtp_session,meta_rtp,meta_rtcp);
 	}
 
 	call->audiostream_app_evq = ortp_ev_queue_new();
@@ -1601,9 +1605,13 @@ void linphone_call_init_video_stream(LinphoneCall *call){
 		if (lc->rtptf){
 			RtpTransport *vrtp=lc->rtptf->video_rtp_func(lc->rtptf->video_rtp_func_data, call->media_ports[1].rtp_port);
 			RtpTransport *vrtcp=lc->rtptf->video_rtcp_func(lc->rtptf->video_rtcp_func_data, call->media_ports[1].rtcp_port);
-			rtp_session_set_transports(call->videostream->ms.sessions.rtp_session,vrtp,vrtcp);
+			RtpTransport *meta_rtp;
+			RtpTransport *meta_rtcp;
+			meta_rtp_transport_new(&meta_rtp,TRUE,vrtp, 0);
+			meta_rtp_transport_new(&meta_rtcp,FALSE,vrtcp, 0);
+			rtp_session_set_transports(call->videostream->ms.sessions.rtp_session,meta_rtp,meta_rtcp);
 		}
-			call->videostream_app_evq = ortp_ev_queue_new();
+		call->videostream_app_evq = ortp_ev_queue_new();
 		rtp_session_register_event_queue(call->videostream->ms.sessions.rtp_session,call->videostream_app_evq);
 		_linphone_call_prepare_ice_for_stream(call,1,FALSE);
 #ifdef TEST_EXT_RENDERER
@@ -1952,6 +1960,8 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, const char *cna
 			if (playcard &&  stream->max_rate>0) ms_snd_card_set_preferred_sample_rate(playcard, stream->max_rate);
 			if (captcard &&  stream->max_rate>0) ms_snd_card_set_preferred_sample_rate(captcard, stream->max_rate);
 			audio_stream_enable_adaptive_bitrate_control(call->audiostream,use_arc);
+			media_stream_set_adaptive_bitrate_algorithm(&call->audiostream->ms,
+													  linphone_core_get_adaptive_rate_algorithm(lc));
 			audio_stream_enable_adaptive_jittcomp(call->audiostream, linphone_core_audio_adaptive_jittcomp_enabled(lc));
 			if (!call->params->in_conference && call->params->record_file){
 				audio_stream_mixed_record_open(call->audiostream,call->params->record_file);
@@ -2042,6 +2052,8 @@ static void linphone_call_start_video_stream(LinphoneCall *call, const char *cna
 
 			video_stream_enable_adaptive_bitrate_control(call->videostream,
 													  linphone_core_adaptive_rate_control_enabled(lc));
+			media_stream_set_adaptive_bitrate_algorithm(&call->videostream->ms,
+													  linphone_core_get_adaptive_rate_algorithm(lc));
 			video_stream_enable_adaptive_jittcomp(call->videostream, linphone_core_video_adaptive_jittcomp_enabled(lc));
 			if (lc->video_conf.preview_vsize.width!=0)
 				video_stream_set_preview_size(call->videostream,lc->video_conf.preview_vsize);

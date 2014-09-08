@@ -55,14 +55,14 @@ typedef struct {
 	PyObject_HEAD
 	PyObject *user_data;
 	{{class_cname}} *native_ptr;
-{{{class_object_members}}}
+{{{class_object_members_code}}}
 } pylinphone_{{class_name}}Object;
 
 {{/classes}}
 
 {{#classes}}
 static {{class_cname}} * pylinphone_{{class_name}}_get_native_ptr(PyObject *self);
-static PyObject * pylinphone_{{class_name}}_new_from_native_ptr(PyTypeObject *type, const {{class_cname}} *native_ptr);
+static PyObject * pylinphone_{{class_name}}_from_native_ptr(PyTypeObject *type, const {{class_cname}} *native_ptr);
 {{#class_type_hand_written_methods}}
 static PyObject * pylinphone_{{class_name}}_class_method_{{method_name}}(PyObject *cls, PyObject *args);
 {{/class_type_hand_written_methods}}
@@ -76,7 +76,7 @@ PyObject * PyList_FromMSListOf{{c_contained_type}}(const MSList *msl) {
 	PyObject *pyl = PyList_New(0);
 	while (msl != NULL) {
 		{{c_contained_type}} *native_ptr = ({{c_contained_type}} *)msl->data;
-		PyObject *item = pylinphone_{{python_contained_type}}_new_from_native_ptr(&pylinphone_{{python_contained_type}}Type, native_ptr);
+		PyObject *item = pylinphone_{{python_contained_type}}_from_native_ptr(&pylinphone_{{python_contained_type}}Type, native_ptr);
 		PyList_Append(pyl, item);
 		msl = ms_list_next(msl);
 	}
@@ -107,8 +107,8 @@ static {{class_cname}} * pylinphone_{{class_name}}_get_native_ptr(PyObject *self
 	return ((pylinphone_{{class_name}}Object *)self)->native_ptr;
 }
 
-static PyObject * pylinphone_{{class_name}}_new_from_native_ptr(PyTypeObject *type, const {{class_cname}} *native_ptr) {
-{{{new_from_native_pointer_body}}}
+static PyObject * pylinphone_{{class_name}}_from_native_ptr(PyTypeObject *type, const {{class_cname}} *native_ptr) {
+{{{from_native_pointer_body}}}
 }
 
 static PyObject * pylinphone_{{class_name}}_new(PyTypeObject *type, PyObject *args, PyObject *kw) {
@@ -293,6 +293,7 @@ PyMODINIT_FUNC initlinphone(void) {
 {{#enums}}
 	menum = Py_InitModule3("{{enum_name}}", pylinphone_{{enum_name}}_ModuleMethods, "{{{enum_doc}}}");
 	if (menum == NULL) return;
+	Py_INCREF(menum);
 	if (PyModule_AddObject(m, "{{enum_name}}", menum) < 0) return;
 {{#enum_values}}
 	if (PyModule_AddIntConstant(menum, "{{enum_value_name}}", {{enum_value_cname}}) < 0) return;
@@ -301,6 +302,7 @@ PyMODINIT_FUNC initlinphone(void) {
 
 	menum = Py_InitModule3("PayloadTypeType", pylinphone_PayloadTypeType_ModuleMethods, "Type of linphone.PayloadType.");
 	if (menum == NULL) return;
+	Py_INCREF(menum);
 	if (PyModule_AddObject(m, "PayloadTypeType", menum) < 0) return;
 	if (PyModule_AddIntConstant(menum, "PAYLOAD_AUDIO_CONTINUOUS", PAYLOAD_AUDIO_CONTINUOUS) < 0) return;
 	if (PyModule_AddIntConstant(menum, "PAYLOAD_AUDIO_PACKETIZED", PAYLOAD_AUDIO_PACKETIZED) < 0) return;
