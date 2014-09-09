@@ -464,6 +464,7 @@ static void sip_config_read(LinphoneCore *lc)
 	sal_enable_sip_update_method(lc->sal,lp_config_get_int(lc->config,"sip","sip_update",1));
 	lc->sip_conf.vfu_with_info=lp_config_get_int(lc->config,"sip","vfu_with_info",1);
 	linphone_core_set_sip_transport_timeout(lc, lp_config_get_int(lc->config, "sip", "transport_timeout", 63000));
+	sal_set_supported_tags(lc->sal,lp_config_get_string(lc->config,"sip","supported","replaces, outbound"));
 }
 
 static void rtp_config_read(LinphoneCore *lc)
@@ -2819,7 +2820,7 @@ int linphone_core_accept_early_media_with_params(LinphoneCore* lc, LinphoneCall*
 
 		// if parameters are passed, update the media description
 		if ( params ) {
-			call->params = linphone_call_params_copy(params);
+			linphone_call_set_new_params(call,params);
 			linphone_call_make_local_media_description ( lc,call );
 			sal_call_set_local_media_description ( call->op,call->localdesc );
 			sal_op_set_sent_custom_header ( call->op,params->custom_headers );
@@ -2853,8 +2854,9 @@ int linphone_core_accept_early_media(LinphoneCore* lc, LinphoneCall* call){
 
 int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call){
 	const char *subject;
+	bool_t no_user_consent=call->params->no_user_consent;
 
-	linphone_call_make_local_media_description(lc,call);
+	if (!no_user_consent) linphone_call_make_local_media_description(lc,call);
 #ifdef BUILD_UPNP
 	if(call->upnp_session != NULL) {
 		linphone_core_update_local_media_description_from_upnp(call->localdesc, call->upnp_session);
@@ -2862,8 +2864,10 @@ int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call){
 #endif //BUILD_UPNP
 	if (call->params->in_conference){
 		subject="Conference";
-	}else{
+	}else if (!no_user_consent){
 		subject="Media change";
+	}else{
+		subject="Refreshing";
 	}
 	if (lc->vtable.display_status)
 		lc->vtable.display_status(lc,_("Modifying call parameters..."));
@@ -2872,7 +2876,7 @@ int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call){
 		/*give a chance to update the contact address if connectivity has changed*/
 		sal_op_set_contact_address(call->op,sal_op_get_contact_address(call->dest_proxy->op));
 	}else sal_op_set_contact_address(call->op,NULL);
-	return sal_call_update(call->op,subject);
+	return sal_call_update(call->op,subject,no_user_consent);
 }
 
 /**
@@ -2922,8 +2926,7 @@ int linphone_core_update_call(LinphoneCore *lc, LinphoneCall *call, const Linpho
 
 		}
 #endif /* defined(VIDEO_ENABLED) && defined(BUILD_UPNP) */
-
-		call->params = linphone_call_params_copy(params);
+		linphone_call_set_new_params(call,params);
 		err=linphone_call_prepare_ice(call,FALSE);
 		if (err==1) {
 			ms_message("Defer call update to gather ICE candidates");
@@ -2984,7 +2987,7 @@ int linphone_core_defer_call_update(LinphoneCore *lc, LinphoneCall *call){
 	return -1;
 }
 
-int linphone_core_start_accept_call_update(LinphoneCore *lc, LinphoneCall *call){
+int linphone_core_start_accept_call_update(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState next_state, const char *state_info){
 	SalMediaDescription *md;
 	if (call->ice_session != NULL) {
 		if (ice_session_nb_losing_pairs(call->ice_session) > 0) {
@@ -3002,8 +3005,7 @@ int linphone_core_start_accept_call_update(LinphoneCore *lc, LinphoneCall *call)
 		linphone_core_update_streams (lc,call,md);
 		linphone_call_fix_call_parameters(call);
 	}
-	if (call->state != LinphoneCallOutgoingEarlyMedia) /*don't change the state in case of outgoing early (SIP UPDATE)*/
-		linphone_call_set_state(call,LinphoneCallStreamsRunning,"Connected (streams running)");
+	linphone_call_set_state(call,next_state,state_info);
 	return 0;
 }
 
@@ -3032,10 +3034,10 @@ int linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, const
 				 linphone_call_state_to_string(call->state));
 		return -1;
 	}
-	return _linphone_core_accept_call_update(lc, call, params);
+	return _linphone_core_accept_call_update(lc, call, params, call->prevstate, linphone_call_state_to_string(call->prevstate));
 }
 
-int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, const LinphoneCallParams *params){
+int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, const LinphoneCallParams *params, LinphoneCallState next_state, const char *state_info){
 	SalMediaDescription *remote_desc;
 	bool_t keep_sdp_version;
 #if defined(VIDEO_ENABLED) && defined(BUILD_UPNP)
@@ -3048,13 +3050,13 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 		/* Remote has sent an INVITE with the same SDP as before, so send a 200 OK with the same SDP as before. */
 		ms_warning("SDP version has not changed, send same SDP as before.");
 		sal_call_accept(call->op);
-		linphone_call_set_state(call,LinphoneCallStreamsRunning,"Connected (streams running)");
+		linphone_call_set_state(call,next_state,state_info);
 		return 0;
 	}
 	if (params==NULL){
 		call->params->has_video=lc->video_policy.automatically_accept || call->current_params->has_video;
 	}else
-		call->params = linphone_call_params_copy(params);
+		linphone_call_set_new_params(call,params);
 
 	if (call->params->has_video && !linphone_core_video_enabled(lc)){
 		ms_warning("linphone_core_accept_call_update(): requested video but video support is globally disabled. Refusing video.");
@@ -3086,7 +3088,7 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 	}
 #endif //BUILD_UPNP
 
-	linphone_core_start_accept_call_update(lc, call);
+	linphone_core_start_accept_call_update(lc, call, next_state, state_info);
 	return 0;
 }
 
@@ -3169,7 +3171,7 @@ int linphone_core_accept_call_with_params(LinphoneCore *lc, LinphoneCall *call, 
 	linphone_call_set_contact_op(call);
 	if (params){
 		const SalMediaDescription *md = sal_call_get_remote_media_description(call->op);
-		call->params = linphone_call_params_copy(params);
+		linphone_call_set_new_params(call,params);
 		// There might not be a md if the INVITE was lacking an SDP
 		// In this case we use the parameters as is.
 		if (md) {
@@ -3413,7 +3415,7 @@ int _linphone_core_pause_call(LinphoneCore *lc, LinphoneCall *call)
 		return -1;
 	}
 	sal_call_set_local_media_description(call->op,call->localdesc);
-	if (sal_call_update(call->op,subject) != 0){
+	if (sal_call_update(call->op,subject,FALSE) != 0){
 		if (lc->vtable.display_warning)
 			lc->vtable.display_warning(lc,_("Could not pause the call"));
 	}
@@ -3498,7 +3500,7 @@ int linphone_core_resume_call(LinphoneCore *lc, LinphoneCall *call){
 	sal_call_set_local_media_description(call->op,call->localdesc);
 	sal_media_description_set_dir(call->localdesc,SalStreamSendRecv);
 	if (call->params->in_conference && !call->current_params->in_conference) subject="Conference";
-	if(sal_call_update(call->op,subject) != 0){
+	if ( sal_call_update(call->op,subject,FALSE) != 0){
 		return -1;
 	}
 	linphone_call_set_state(call,LinphoneCallResuming,"Resuming");
@@ -6402,6 +6404,29 @@ bool_t linphone_core_sdp_200_ack_enabled(const LinphoneCore *lc) {
 
 void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url) {
 	core->file_transfer_server=ms_strdup(server_url);
+}
+
+/**
+ * This function controls signaling features supported by the core.
+ * They are typically included in a SIP Supported header.
+ * @param lc the LinphoneCore
+ * @param tag the feature tag name
+ * @ingroup initializing
+**/
+void linphone_core_add_supported_tag(LinphoneCore *lc, const char *tag){
+	sal_add_supported_tag(lc->sal,tag);
+	lp_config_set_string(lc->config,"sip","supported",sal_get_supported_tags(lc->sal));
+}
+
+/**
+ * Remove a supported tag. @see linphone_core_add_supported_tag()
+ * @param lc the LinphoneCore
+ * @param tag the tag to remove
+ * @ingroup initializing
+**/
+void linphone_core_remove_supported_tag(LinphoneCore *lc, const char *tag){
+	sal_remove_supported_tag(lc->sal,tag);
+	lp_config_set_string(lc->config,"sip","supported",sal_get_supported_tags(lc->sal));
 }
 
 

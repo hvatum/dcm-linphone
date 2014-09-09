@@ -307,7 +307,7 @@ int sal_media_description_equals(const SalMediaDescription *md1, const SalMediaD
 	int i;
 
 	if (strcmp(md1->addr, md2->addr) != 0) result |= SAL_MEDIA_DESCRIPTION_NETWORK_CHANGED;
-	if (md1->nb_streams != md2->nb_streams) result |= SAL_MEDIA_DESCRIPTION_CODEC_CHANGED;
+	if (md1->nb_streams != md2->nb_streams) result |= SAL_MEDIA_DESCRIPTION_STREAMS_CHANGED;
 	if (md1->bandwidth != md2->bandwidth) result |= SAL_MEDIA_DESCRIPTION_CODEC_CHANGED;
 	for(i = 0; i < md1->nb_streams; ++i){
 		result |= sal_stream_description_equals(&md1->streams[i], &md2->streams[i]);
@@ -735,9 +735,9 @@ belle_sip_stack_t *sal_get_belle_sip_stack(Sal *sal) {
 	return sal->stack;
 }
 
-char* sal_get_public_uri(SalOp *sal) {
-	if (sal&&sal->refresher) {
-		return belle_sip_refresher_get_public_uri(sal->refresher);
+char* sal_op_get_public_uri(SalOp *op) {
+	if (op && op->refresher) {
+		return belle_sip_refresher_get_public_uri(op->refresher);
 	}
 	return NULL;
 }
