@@ -1878,8 +1878,8 @@ LINPHONE_PUBLIC	int linphone_core_get_upload_bandwidth(const LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_enable_adaptive_rate_control(LinphoneCore *lc, bool_t enabled);
 LINPHONE_PUBLIC bool_t linphone_core_adaptive_rate_control_enabled(const LinphoneCore *lc);
 
-LINPHONE_PUBLIC void linphone_core_set_adaptive_rate_algorithm(LinphoneCore *lc, MSQosAnalyzerAlgorithm algorithm);
-LINPHONE_PUBLIC MSQosAnalyzerAlgorithm linphone_core_get_adaptive_rate_algorithm(const LinphoneCore *lc);
+LINPHONE_PUBLIC void linphone_core_set_adaptive_rate_algorithm(LinphoneCore *lc, const char *algorithm);
+LINPHONE_PUBLIC const char* linphone_core_get_adaptive_rate_algorithm(const LinphoneCore *lc);
 
 LINPHONE_PUBLIC	void linphone_core_set_download_ptime(LinphoneCore *lc, int ptime);
 LINPHONE_PUBLIC	int  linphone_core_get_download_ptime(LinphoneCore *lc);
@@ -2853,6 +2853,13 @@ LINPHONE_PUBLIC void linphone_core_set_tone(LinphoneCore *lc, LinphoneToneID id,
  * @param[in] server_url URL of the file server like https://file.linphone.org/upload.php
  * */
 LINPHONE_PUBLIC void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url);
+
+/**
+ * Get the globaly set http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml.
+ * @param[in] core #LinphoneCore from which to get the server_url
+ * @return URL of the file server like https://file.linphone.org/upload.php
+ * */
+LINPHONE_PUBLIC const char * linphone_core_get_file_transfer_server(LinphoneCore *core);
 
 /**
  * Returns a null terminated table of strings containing the file format extension supported for call recording.

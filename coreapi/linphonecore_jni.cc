@@ -208,6 +208,7 @@ public:
 		vTable.notify_received=notifyReceived;
 		vTable.publish_state_changed=publishStateChanged;
 		vTable.configuring_status=configuringStatus;
+		vTable.file_transfer_progress_indication=fileTransferProgressIndication;
 
 		listenerClass = (jclass)env->NewGlobalRef(env->GetObjectClass( alistener));
 
@@ -310,6 +311,8 @@ public:
 		configuringStateId = env->GetMethodID(listenerClass,"configuringStatus","(Lorg/linphone/core/LinphoneCore;Lorg/linphone/core/LinphoneCore$RemoteProvisioningState;Ljava/lang/String;)V");
 		configuringStateClass = (jclass)env->NewGlobalRef(env->FindClass("org/linphone/core/LinphoneCore$RemoteProvisioningState"));
 		configuringStateFromIntId = env->GetStaticMethodID(configuringStateClass,"fromInt","(I)Lorg/linphone/core/LinphoneCore$RemoteProvisioningState;");
+
+		fileTransferProgressIndicationId = env->GetMethodID(listenerClass, "fileTransferProgressIndication", "(Lorg/linphone/core/LinphoneCore;Lorg/linphone/core/LinphoneChatMessage;Lorg/linphone/core/LinphoneContent;I)V");
 	}
 
 	~LinphoneCoreData() {
@@ -416,6 +419,8 @@ public:
 
 	jclass subscriptionDirClass;
 	jmethodID subscriptionDirFromIntId;
+
+	jmethodID fileTransferProgressIndicationId;
 
 	LinphoneCoreVTable vTable;
 
@@ -791,6 +796,22 @@ public:
 		}
 		LinphoneCoreData* lcData = (LinphoneCoreData*)linphone_core_get_user_data(lc);
 		env->CallVoidMethod(lcData->listener, lcData->configuringStateId, lcData->core, env->CallStaticObjectMethod(lcData->configuringStateClass,lcData->configuringStateFromIntId,(jint)status), message ? env->NewStringUTF(message) : NULL);
+	}
+
+	static void fileTransferProgressIndication(LinphoneCore *lc, LinphoneChatMessage *message, const LinphoneContent* content, size_t progress) {
+		JNIEnv *env = 0;
+		jint result = jvm->AttachCurrentThread(&env,NULL);
+		if (result != 0) {
+			ms_error("cannot attach VM");
+			return;
+		}
+		LinphoneCoreData* lcData = (LinphoneCoreData*)linphone_core_get_user_data(lc);
+		env->CallVoidMethod(lcData->listener, 
+				lcData->fileTransferProgressIndicationId, 
+				lcData->core, 
+				message ? env->NewObject(lcData->chatMessageClass, lcData->chatMessageCtrId, (jlong)message) : NULL,
+				content ? create_java_linphone_content(env, content) : NULL,
+				progress);
 	}
 };
 
@@ -1333,18 +1354,26 @@ extern "C" jboolean Java_org_linphone_core_LinphoneCoreImpl_isAdaptiveRateContro
 																			) {
 	return (jboolean)linphone_core_adaptive_rate_control_enabled((LinphoneCore*)lc);
 }
-extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_getAdaptiveRateAlgorithm(JNIEnv*  env
+extern "C" jstring Java_org_linphone_core_LinphoneCoreImpl_getAdaptiveRateAlgorithm(JNIEnv*  env
 																			,jobject  thiz
 																			,jlong lc
 																			) {
-	return (jint)linphone_core_get_adaptive_rate_algorithm((LinphoneCore*)lc);
+	const char* alg = linphone_core_get_adaptive_rate_algorithm((LinphoneCore*)lc);
+	if (alg) {
+		return env->NewStringUTF(alg);
+	} else {
+		return NULL;
+	}
 }
 
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setAdaptiveRateAlgorithm(JNIEnv*  env
 																			,jobject  thiz
 																			,jlong lc
-																			,jint alg) {
-	linphone_core_set_adaptive_rate_algorithm((LinphoneCore*)lc,(MSQosAnalyzerAlgorithm)alg);
+																			,jstring jalg) {
+	const char* alg = jalg?env->GetStringUTFChars(jalg, NULL):NULL;
+	linphone_core_set_adaptive_rate_algorithm((LinphoneCore*)lc,alg);
+	if (alg) env->ReleaseStringUTFChars(jalg, alg);
+
 }
 
 

@@ -22,7 +22,6 @@ import static android.media.AudioManager.MODE_IN_CALL;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 import org.linphone.core.LinphoneCall.State;
 import org.linphone.mediastream.Log;
@@ -77,8 +76,8 @@ class LinphoneCoreImpl implements LinphoneCore {
 	private native boolean payloadTypeIsVbr(long nativePtr, long payloadType);
 	private native void enableAdaptiveRateControl(long nativePtr,boolean enable);
 	private native boolean isAdaptiveRateControlEnabled(long nativePtr);
-	private native int getAdaptiveRateAlgorithm(long nativePtr);
-	private native void setAdaptiveRateAlgorithm(long nativePtr, int alg);
+	private native String getAdaptiveRateAlgorithm(long nativePtr);
+	private native void setAdaptiveRateAlgorithm(long nativePtr, String alg);
 	private native void enableEchoCancellation(long nativePtr,boolean enable);
 	private native boolean isEchoCancellationEnabled(long nativePtr);
 	private native Object getCurrentCall(long nativePtr) ;
@@ -1224,10 +1223,10 @@ class LinphoneCoreImpl implements LinphoneCore {
 		return isAdaptiveRateControlEnabled(nativePtr);
 	}
 	public synchronized AdaptiveRateAlgorithm getAdaptiveRateAlgorithm() {
-		return AdaptiveRateAlgorithm.fromInt(getAdaptiveRateAlgorithm(nativePtr));
+		return AdaptiveRateAlgorithm.fromString(getAdaptiveRateAlgorithm(nativePtr));
 	}
 	public synchronized void setAdaptiveRateAlgorithm(AdaptiveRateAlgorithm alg) {
-		setAdaptiveRateAlgorithm(nativePtr, alg.mValue);
+		setAdaptiveRateAlgorithm(nativePtr, alg.toString());
 	}
 
 
@@ -1240,6 +1239,18 @@ class LinphoneCoreImpl implements LinphoneCore {
 	@Override
 	public synchronized void setVideoJittcomp(int value) {
 		setVideoJittcomp(nativePtr,value);
+	}
+	
+	@Override
+	public void setFileTransferServer(String serverUrl) {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	@Override
+	public String getFileTransferServer() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }

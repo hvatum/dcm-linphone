@@ -37,6 +37,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "mediastreamer2/mseventqueue.h"
 #include "mediastreamer2/mssndcard.h"
 
+static const char EC_STATE_STORE[] = ".linphone.ecstate";
+
 static void linphone_call_stats_uninit(LinphoneCallStats *stats);
 
 #ifdef VIDEO_ENABLED
@@ -1544,13 +1546,14 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	audio_stream_enable_gain_control(audiostream,TRUE);
 	if (linphone_core_echo_cancellation_enabled(lc)){
 		int len,delay,framesize;
-		const char *statestr=lp_config_get_string(lc->config,"sound","ec_state",NULL);
+		char *statestr=lp_config_read_relative_file(lc->config, EC_STATE_STORE);
 		len=lp_config_get_int(lc->config,"sound","ec_tail_len",0);
 		delay=lp_config_get_int(lc->config,"sound","ec_delay",0);
 		framesize=lp_config_get_int(lc->config,"sound","ec_framesize",0);
 		audio_stream_set_echo_canceller_params(audiostream,len,delay,framesize);
 		if (statestr && audiostream->ec){
 			ms_filter_call_method(audiostream->ec,MS_ECHO_CANCELLER_SET_STATE_STRING,(void*)statestr);
+			ms_free(statestr);
 		}
 	}
 	audio_stream_enable_automatic_gain_control(audiostream,linphone_core_agc_enabled(lc));
@@ -1962,7 +1965,7 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, const char *cna
 			if (captcard &&  stream->max_rate>0) ms_snd_card_set_preferred_sample_rate(captcard, stream->max_rate);
 			audio_stream_enable_adaptive_bitrate_control(call->audiostream,use_arc);
 			media_stream_set_adaptive_bitrate_algorithm(&call->audiostream->ms,
-													  linphone_core_get_adaptive_rate_algorithm(lc));
+													  ms_qos_analyzer_algorithm_from_string(linphone_core_get_adaptive_rate_algorithm(lc)));
 			audio_stream_enable_adaptive_jittcomp(call->audiostream, linphone_core_audio_adaptive_jittcomp_enabled(lc));
 			if (!call->params->in_conference && call->params->record_file){
 				audio_stream_mixed_record_open(call->audiostream,call->params->record_file);
@@ -2054,7 +2057,7 @@ static void linphone_call_start_video_stream(LinphoneCall *call, const char *cna
 			video_stream_enable_adaptive_bitrate_control(call->videostream,
 													  linphone_core_adaptive_rate_control_enabled(lc));
 			media_stream_set_adaptive_bitrate_algorithm(&call->videostream->ms,
-													  linphone_core_get_adaptive_rate_algorithm(lc));
+													  ms_qos_analyzer_algorithm_from_string(linphone_core_get_adaptive_rate_algorithm(lc)));
 			video_stream_enable_adaptive_jittcomp(call->videostream, linphone_core_video_adaptive_jittcomp_enabled(lc));
 			if (lc->video_conf.preview_vsize.width!=0)
 				video_stream_set_preview_size(call->videostream,lc->video_conf.preview_vsize);
@@ -2286,7 +2289,7 @@ static void linphone_call_stop_audio_stream(LinphoneCall *call) {
 			ms_filter_call_method(call->audiostream->ec,MS_ECHO_CANCELLER_GET_STATE_STRING,&state_str);
 			if (state_str){
 				ms_message("Writing echo canceler state, %i bytes",(int)strlen(state_str));
-				lp_config_set_string(call->core->config,"sound","ec_state",state_str);
+				lp_config_write_relative_file(call->core->config, EC_STATE_STORE, state_str);
 			}
 		}
 		audio_stream_get_local_rtp_stats(call->audiostream,&call->log->local_stats);
