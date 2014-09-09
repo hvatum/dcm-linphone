@@ -2514,8 +2514,10 @@ static void linphone_transfer_routes_to_op(MSList *routes, SalOp *op){
 	MSList *it;
 	for(it=routes;it!=NULL;it=it->next){
 		SalAddress *addr=(SalAddress*)it->data;
-		sal_op_add_route_address(op,addr);
-		sal_address_destroy(addr);
+                if (addr) {
+	    	    sal_op_add_route_address(op,addr);
+		    sal_address_destroy(addr);
+                }
 	}
 	ms_list_free(routes);
 }
