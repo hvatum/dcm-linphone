@@ -168,7 +168,7 @@ class LinphoneCoreImpl implements LinphoneCore {
 	}
 
 	protected void finalize() throws Throwable {
-
+		if (nativePtr!=0) destroy();
 	}
 
 	private boolean contextInitialized() {
@@ -267,6 +267,8 @@ class LinphoneCoreImpl implements LinphoneCore {
 		return logs;
 	}
 	public synchronized void destroy() {
+		delete(nativePtr);
+		nativePtr=0;
 	}
 
 	private void isValid() {
@@ -1241,16 +1243,16 @@ class LinphoneCoreImpl implements LinphoneCore {
 		setVideoJittcomp(nativePtr,value);
 	}
 	
+	private native void setFileTransferServer(long ptr, String serverUrl);
 	@Override
-	public void setFileTransferServer(String serverUrl) {
-		// TODO Auto-generated method stub
-		
+	public synchronized void setFileTransferServer(String serverUrl) {
+		setFileTransferServer(nativePtr, serverUrl);
 	}
 	
+	private native String getFileTransferServer(long ptr);
 	@Override
-	public String getFileTransferServer() {
-		// TODO Auto-generated method stub
-		return null;
+	public synchronized String getFileTransferServer() {
+		return getFileTransferServer(nativePtr);
 	}
 
 }

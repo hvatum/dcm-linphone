@@ -128,22 +128,26 @@ static void linphone_chat_message_process_response_from_post_file(void *data, co
 			belle_http_request_listener_t *l;
 			belle_generic_uri_t *uri;
 			belle_http_request_t *req;
+			belle_sip_multipart_body_handler_t *bh;
+			char* ua;
+			char *content_type;
+			char *first_part_header;
+			belle_sip_user_body_handler_t *first_part_bh;
 
-			/* temporary storage of the header of the message part header */
-			char *content_type=belle_sip_strdup_printf("%s/%s", msg->file_transfer_information->type, msg->file_transfer_information->subtype);
-			char *first_part_header = belle_sip_strdup_printf("Content-Disposition: form-data; name=\"File\"; filename=\"%s\"\r\nContent-Type: %s\r\n\r\n", msg->file_transfer_information->name, content_type);
+			/* temporary storage for the Content-disposition header value */
+			first_part_header = belle_sip_strdup_printf("form-data; name=\"File\"; filename=\"%s\"", msg->file_transfer_information->name);
 
-			/* create a user body handler to take care of the file */
-			belle_sip_user_body_handler_t *first_part_bh=belle_sip_user_body_handler_new(msg->file_transfer_information->size,NULL,NULL,linphone_chat_message_file_transfer_on_send_body,msg);
-			belle_sip_body_handler_set_header((belle_sip_body_handler_t *)first_part_bh, first_part_header); /* set the header for this part */
+			/* create a user body handler to take care of the file and add the content disposition and content-type headers */
+			first_part_bh=belle_sip_user_body_handler_new(msg->file_transfer_information->size,NULL,NULL,linphone_chat_message_file_transfer_on_send_body,msg);
+			belle_sip_body_handler_add_header((belle_sip_body_handler_t *)first_part_bh, belle_sip_header_create("Content-disposition", first_part_header));
 			belle_sip_free(first_part_header);
+			belle_sip_body_handler_add_header((belle_sip_body_handler_t *)first_part_bh, (belle_sip_header_t *)belle_sip_header_content_type_create(msg->file_transfer_information->type, msg->file_transfer_information->subtype));
 
 			/* insert it in a multipart body handler which will manage the boundaries of multipart message */
-			belle_sip_multipart_body_handler_t *bh=belle_sip_multipart_body_handler_new(linphone_chat_message_file_transfer_on_progress, msg,  (belle_sip_body_handler_t *)first_part_bh);
+			bh=belle_sip_multipart_body_handler_new(linphone_chat_message_file_transfer_on_progress, msg,  (belle_sip_body_handler_t *)first_part_bh);
 
-			char* ua = ms_strdup_printf("%s/%s", linphone_core_get_user_agent_name(), linphone_core_get_user_agent_version());
+			ua = ms_strdup_printf("%s/%s", linphone_core_get_user_agent_name(), linphone_core_get_user_agent_version());
 
-			belle_sip_free(content_type);
 			content_type=belle_sip_strdup_printf("multipart/form-data; boundary=%s",multipart_boundary);
 
 			uri=belle_generic_uri_parse(msg->chat_room->lc->file_transfer_server);
@@ -171,9 +175,6 @@ static void linphone_chat_message_process_response_from_post_file(void *data, co
 			}
 			body = belle_sip_message_get_body((belle_sip_message_t *)event->response);
 			msg->message = ms_strdup(body);
-			linphone_content_uninit(msg->file_transfer_information);
-			ms_free(msg->file_transfer_information);
-			msg->file_transfer_information = NULL;
 			msg->content_type = ms_strdup("application/vnd.gsma.rcs-ft-http+xml");
 			_linphone_chat_room_send_message(msg->chat_room, msg);
 		}
@@ -419,7 +420,7 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 	time_t t=time(NULL);
 	linphone_chat_message_ref(msg);
 	/* Check if we shall upload a file to a server */
-	if (msg->file_transfer_information != NULL) {
+	if (msg->file_transfer_information != NULL && msg->content_type == NULL) {
 		/* open a transaction with the server and send an empty request(RCS5.1 section 3.5.4.8.3.1) */
 		belle_http_request_listener_callbacks_t cbs={0};
 		belle_http_request_listener_t *l;
@@ -476,6 +477,9 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 			sal_text_send(op, identity, cr->peer,msg->message);
 		} else {
 			sal_message_send(op, identity, cr->peer, msg->content_type, msg->message);
+			// Remove the message to prevent the xml from the file uplaod to be stored in the database
+			ms_free(msg->message);
+			msg->message = NULL;
 		}
 	}
 	msg->dir=LinphoneChatMessageOutgoing;
@@ -1383,7 +1387,6 @@ LinphoneChatMessage* linphone_chat_room_create_file_transfer_message(LinphoneCha
 	linphone_chat_message_set_from(msg, linphone_address_new(linphone_core_get_identity(cr->lc)));
 	msg->content_type=NULL; /* this will be set to application/vnd.gsma.rcs-ft-http+xml when we will transfer the xml reply from server to the peers */
 	msg->http_request=NULL; /* this will store the http request during file upload to the server */
-
 	return msg;
 }
 
