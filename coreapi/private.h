@@ -103,7 +103,7 @@ struct _LinphoneCallParams{
 	bool_t in_conference; /*in conference mode */
 	bool_t low_bandwidth;
 	bool_t no_user_consent;/*when set to TRUE an UPDATE request will be used instead of reINVITE*/ 
-	uint16_t avpf_rr_interval;
+	uint16_t avpf_rr_interval; /*in milliseconds*/
 	LinphonePrivacyMask privacy;
 };
 
@@ -281,11 +281,26 @@ void linphone_core_update_proxy_register(LinphoneCore *lc);
 void linphone_core_refresh_subscribes(LinphoneCore *lc);
 int linphone_core_abort_call(LinphoneCore *lc, LinphoneCall *call, const char *error);
 const char *linphone_core_get_nat_address_resolved(LinphoneCore *lc);
+/**
+ * @brief Equivalent to _linphone_core_get_firewall_policy_with_lie(lc, TRUE)
+ * @param lc LinphoneCore instance
+ * @return Fairewall policy
+ */
+LinphoneFirewallPolicy _linphone_core_get_firewall_policy(const LinphoneCore *lc);
+/**
+ * @brief Get the firwall policy which has been set.
+ * @param lc Instance of LinphoneCore
+ * @param lie If true, the configured firewall policy will be returned only if no tunnel are enabled.
+ * Otherwise, NoFirewallPolicy value will be returned.
+ * @return The firewall policy
+ */
+LinphoneFirewallPolicy _linphone_core_get_firewall_policy_with_lie(const LinphoneCore *lc, bool_t lie);
 
 int linphone_proxy_config_send_publish(LinphoneProxyConfig *cfg, LinphonePresenceModel *presence);
 void linphone_proxy_config_set_state(LinphoneProxyConfig *cfg, LinphoneRegistrationState rstate, const char *message);
 void linphone_proxy_config_stop_refreshing(LinphoneProxyConfig *obj);
 void linphone_proxy_config_write_all_to_config_file(LinphoneCore *lc);
+void _linphone_proxy_config_release(LinphoneProxyConfig *cfg);
 /*
  * returns service route as defined in as defined by rfc3608, might be a list instead of just one.
  * Can be NULL
@@ -447,16 +462,18 @@ struct _LinphoneProxyConfig
 	char *dial_prefix;
 	LinphoneRegistrationState state;
 	SalOp *publish_op;
+	LinphoneAVPFMode avpf_mode;
+	
 	bool_t commit;
 	bool_t reg_sendregister;
 	bool_t publish;
 	bool_t dial_escape_plus;
+	
 	bool_t send_publish;
 	bool_t quality_reporting_enabled;
-	bool_t avpf_enabled;
-	bool_t pad;
 	uint8_t avpf_rr_interval;
 	uint8_t quality_reporting_interval;
+	
 	time_t deletion_date;
 	LinphonePrivacyMask privacy;
 	/*use to check if server config has changed  between edit() and done()*/
@@ -553,6 +570,7 @@ typedef struct rtp_config
 	int nortp_timeout;
 	int disable_upnp;
 	MSCryptoSuite *srtp_suites;
+	LinphoneAVPFMode avpf_mode;
 	bool_t rtp_no_xmit_on_audio_mute;
 							  /* stop rtp xmit when audio muted */
 	bool_t audio_adaptive_jitt_comp_enabled;
@@ -663,7 +681,7 @@ typedef struct _LinphoneConference LinphoneConference;
 
 struct _LinphoneCore
 {
-	LinphoneCoreVTable vtable;
+	MSList* vtables;
 	Sal *sal;
 	LinphoneGlobalState state;
 	struct _LpConfig *config;
@@ -721,6 +739,7 @@ struct _LinphoneCore
 	bool_t preview_finished;
 	bool_t auto_net_state_mon;
 	bool_t network_reachable;
+	bool_t network_reachable_to_be_notified; /*set to true when state must be notified in next iterate*/
 	bool_t use_preview_window;
 
 	time_t network_last_check;
@@ -962,6 +981,44 @@ BELLE_SIP_TYPE_ID(LinphoneLDAPContactProvider),
 BELLE_SIP_TYPE_ID(LinphoneLDAPContactSearch),
 BELLE_SIP_TYPE_ID(LinphoneProxyConfig)
 BELLE_SIP_DECLARE_TYPES_END
+
+
+
+void linphone_core_notify_global_state_changed(LinphoneCore *lc, LinphoneGlobalState gstate, const char *message);
+void linphone_core_notify_call_state_changed(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState cstate, const char *message);
+void linphone_core_notify_call_encryption_changed(LinphoneCore *lc, LinphoneCall *call, bool_t on, const char *authentication_token);
+void linphone_core_notify_registration_state_changed(LinphoneCore *lc, LinphoneProxyConfig *cfg, LinphoneRegistrationState cstate, const char *message);
+void linphone_core_notify_show_interface(LinphoneCore *lc);
+void linphone_core_notify_display_status(LinphoneCore *lc, const char *message);
+void linphone_core_notify_display_message(LinphoneCore *lc, const char *message);
+void linphone_core_notify_display_warning(LinphoneCore *lc, const char *message);
+void linphone_core_notify_display_url(LinphoneCore *lc, const char *message, const char *url);
+void linphone_core_notify_notify_presence_received(LinphoneCore *lc, LinphoneFriend * lf);
+void linphone_core_notify_new_subscription_requested(LinphoneCore *lc, LinphoneFriend *lf, const char *url);
+void linphone_core_notify_auth_info_requested(LinphoneCore *lc, const char *realm, const char *username, const char *domain);
+void linphone_core_notify_call_log_updated(LinphoneCore *lc, LinphoneCallLog *newcl);
+void linphone_core_notify_text_message_received(LinphoneCore *lc, LinphoneChatRoom *room, const LinphoneAddress *from, const char *message);
+void linphone_core_notify_message_received(LinphoneCore *lc, LinphoneChatRoom *room, LinphoneChatMessage *message);
+void linphone_core_notify_file_transfer_recv(LinphoneCore *lc, LinphoneChatMessage *message, const LinphoneContent* content, const char* buff, size_t size);
+void linphone_core_notify_file_transfer_send(LinphoneCore *lc, LinphoneChatMessage *message,  const LinphoneContent* content, char* buff, size_t* size);
+void linphone_core_notify_file_transfer_progress_indication(LinphoneCore *lc, LinphoneChatMessage *message, const LinphoneContent* content, size_t progress);
+void linphone_core_notify_is_composing_received(LinphoneCore *lc, LinphoneChatRoom *room);
+void linphone_core_notify_dtmf_received(LinphoneCore* lc, LinphoneCall *call, int dtmf);
+/*
+ * return true if at least a registered vtable has a cb for dtmf received*/
+bool_t linphone_core_dtmf_received_has_listener(const LinphoneCore* lc);
+void linphone_core_notify_refer_received(LinphoneCore *lc, const char *refer_to);
+void linphone_core_notify_buddy_info_updated(LinphoneCore *lc, LinphoneFriend *lf);
+void linphone_core_notify_transfer_state_changed(LinphoneCore *lc, LinphoneCall *transfered, LinphoneCallState new_call_state);
+void linphone_core_notify_call_stats_updated(LinphoneCore *lc, LinphoneCall *call, const LinphoneCallStats *stats);
+void linphone_core_notify_info_received(LinphoneCore *lc, LinphoneCall *call, const LinphoneInfoMessage *msg);
+void linphone_core_notify_configuring_status(LinphoneCore *lc, LinphoneConfiguringState status, const char *message);
+void linphone_core_notify_network_reachable(LinphoneCore *lc, bool_t reachable);
+
+void linphone_core_notify_notify_received(LinphoneCore *lc, LinphoneEvent *lev, const char *notified_event, const LinphoneContent *body);
+void linphone_core_notify_subscription_state_changed(LinphoneCore *lc, LinphoneEvent *lev, LinphoneSubscriptionState state);
+void linphone_core_notify_publish_state_changed(LinphoneCore *lc, LinphoneEvent *lev, LinphonePublishState state);
+
 
 
 #ifdef __cplusplus

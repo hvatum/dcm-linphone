@@ -114,7 +114,7 @@ static void linphone_proxy_config_init(LinphoneCore* lc, LinphoneProxyConfig *ob
 	obj->quality_reporting_interval = lc ? lp_config_get_default_int(lc->config, "proxy", "quality_reporting_interval", 0) : 0;
 	obj->contact_params = contact_params ? ms_strdup(contact_params) : NULL;
 	obj->contact_uri_params = contact_uri_params ? ms_strdup(contact_uri_params) : NULL;
-	obj->avpf_enabled = lc ? lp_config_get_default_int(lc->config, "proxy", "avpf", 0) : 0;
+	obj->avpf_mode = lc ? lp_config_get_default_int(lc->config, "proxy", "avpf", LinphoneAVPFDefault) : LinphoneAVPFDefault;
 	obj->avpf_rr_interval = lc ? lp_config_get_default_int(lc->config, "proxy", "avpf_rr_interval", 5) : 5;
 	obj->publish_expires=-1;
 }
@@ -185,6 +185,11 @@ void _linphone_proxy_config_destroy(LinphoneProxyConfig *obj){
  * linphone_core_remove_proxy_config() must not be freed.
 **/
 void linphone_proxy_config_destroy(LinphoneProxyConfig *cfg) {
+	belle_sip_object_unref(cfg);
+}
+
+void _linphone_proxy_config_release(LinphoneProxyConfig *cfg) {
+	_linphone_proxy_config_release_ops(cfg);
 	belle_sip_object_unref(cfg);
 }
 
@@ -310,14 +315,14 @@ int linphone_proxy_config_set_route(LinphoneProxyConfig *obj, const char *route)
 
 bool_t linphone_proxy_config_check(LinphoneCore *lc, LinphoneProxyConfig *obj){
 	if (obj->reg_proxy==NULL){
-		if (lc && lc->vtable.display_warning)
-			lc->vtable.display_warning(lc,_("The sip proxy address you entered is invalid, it must start with \"sip:\""
+		if (lc)
+			linphone_core_notify_display_warning(lc,_("The sip proxy address you entered is invalid, it must start with \"sip:\""
 						" followed by a hostname."));
 		return FALSE;
 	}
 	if (obj->reg_identity==NULL){
-		if (lc && lc->vtable.display_warning)
-			lc->vtable.display_warning(lc,_("The sip identity you entered is invalid.\nIt should look like "
+		if (lc)
+			linphone_core_notify_display_warning(lc,_("The sip identity you entered is invalid.\nIt should look like "
 					"sip:username@proxydomain, such as sip:alice@example.net"));
 		return FALSE;
 	}
@@ -1286,7 +1291,7 @@ void linphone_proxy_config_write_to_config_file(LpConfig *config, LinphoneProxyC
 	lp_config_set_int(config,key,"reg_expires",obj->expires);
 	lp_config_set_int(config,key,"reg_sendregister",obj->reg_sendregister);
 	lp_config_set_int(config,key,"publish",obj->publish);
-	lp_config_set_int(config, key, "avpf", obj->avpf_enabled);
+	lp_config_set_int(config, key, "avpf", obj->avpf_mode);
 	lp_config_set_int(config, key, "avpf_rr_interval", obj->avpf_rr_interval);
 	lp_config_set_int(config,key,"dial_escape_plus",obj->dial_escape_plus);
 	lp_config_set_string(config,key,"dial_prefix",obj->dial_prefix);
@@ -1338,7 +1343,7 @@ LinphoneProxyConfig *linphone_proxy_config_new_from_config_file(LinphoneCore* lc
 	CONFIGURE_INT_VALUE(cfg,config,key,expires,"reg_expires")
 	CONFIGURE_BOOL_VALUE(cfg,config,key,register,"reg_sendregister")
 	CONFIGURE_BOOL_VALUE(cfg,config,key,publish,"publish")
-	CONFIGURE_BOOL_VALUE(cfg,config,key,avpf,"avpf")
+	CONFIGURE_INT_VALUE(cfg,config,key,avpf_mode,"avpf")
 	CONFIGURE_INT_VALUE(cfg,config,key,avpf_rr_interval,"avpf_rr_interval")
 	CONFIGURE_INT_VALUE(cfg,config,key,dial_escape_plus,"dial_escape_plus")
 	CONFIGURE_STRING_VALUE(cfg,config,key,dial_prefix,"dial_prefix")
@@ -1365,9 +1370,9 @@ static void linphone_proxy_config_activate_sip_setup(LinphoneProxyConfig *cfg){
 	caps=sip_setup_context_get_capabilities(ssc);
 	if (caps & SIP_SETUP_CAP_ACCOUNT_MANAGER){
 		if (sip_setup_context_login_account(ssc,cfg->reg_identity,NULL,NULL)!=0){
-			if (lc->vtable.display_warning){
+			{
 				char *tmp=ms_strdup_printf(_("Could not login as %s"),cfg->reg_identity);
-				lc->vtable.display_warning(lc,tmp);
+				linphone_core_notify_display_warning(lc,tmp);
 				ms_free(tmp);
 			}
 			return;
@@ -1567,9 +1572,8 @@ void linphone_proxy_config_set_state(LinphoneProxyConfig *cfg, LinphoneRegistrat
 		if (update_friends){
 			linphone_core_update_friends_subscriptions(lc,cfg,TRUE);
 		}
-		if (lc && lc->vtable.registration_state_changed){
-			lc->vtable.registration_state_changed(lc,cfg,state,message);
-		}
+		if (lc)
+			linphone_core_notify_registration_state_changed(lc,cfg,state,message);
 	} else {
 		/*state already reported*/
 	}
@@ -1652,11 +1656,22 @@ int linphone_proxy_config_get_publish_expires(const LinphoneProxyConfig *obj) {
 }
 
 void linphone_proxy_config_enable_avpf(LinphoneProxyConfig *cfg, bool_t enable) {
-	cfg->avpf_enabled = enable;
+	cfg->avpf_mode=enable ? LinphoneAVPFEnabled : LinphoneAVPFDisabled;
 }
 
 bool_t linphone_proxy_config_avpf_enabled(LinphoneProxyConfig *cfg) {
-	return cfg->avpf_enabled;
+	if (cfg->avpf_mode==LinphoneAVPFDefault && cfg->lc){
+		return linphone_core_get_avpf_mode(cfg->lc)==LinphoneAVPFEnabled;
+	}
+	return cfg->avpf_mode == LinphoneAVPFEnabled;
+}
+
+LinphoneAVPFMode linphone_proxy_config_get_avpf_mode(const LinphoneProxyConfig *cfg){
+	return cfg->avpf_mode;
+}
+
+void linphone_proxy_config_set_avpf_mode(LinphoneProxyConfig *cfg, LinphoneAVPFMode mode){
+	cfg->avpf_mode=mode;
 }
 
 void linphone_proxy_config_set_avpf_rr_interval(LinphoneProxyConfig *cfg, uint8_t interval) {

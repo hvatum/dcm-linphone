@@ -288,6 +288,20 @@ LINPHONE_PUBLIC int linphone_payload_type_get_channels(const LinphonePayloadType
 
 
 /**
+ * Enum describing RTP AVPF activation modes.
+**/
+enum _LinphoneAVPFMode{
+	LinphoneAVPFDefault=-1, /**<Use default value defined at upper level*/
+	LinphoneAVPFDisabled, /**<AVPF is disabled*/
+	LinphoneAVPFEnabled /**<AVPF is enabled */
+};
+
+/**
+ * Enum describing RTP AVPF activation modes.
+**/
+typedef enum _LinphoneAVPFMode  LinphoneAVPFMode;
+
+/**
  * Enum describing type of media encryption types.
 **/
 enum _LinphoneMediaEncryption {
@@ -1014,6 +1028,7 @@ LINPHONE_PUBLIC const char* linphone_proxy_config_get_file_transfer_server(const
  * Indicates whether AVPF/SAVPF must be used for calls using this proxy config.
  * @param[in] cfg #LinphoneProxyConfig object
  * @param[in] enable True to enable AVPF/SAVF, false to disable it.
+ * @deprecated use linphone_proxy_config_set_avpf_mode()
  */
 LINPHONE_PUBLIC void linphone_proxy_config_enable_avpf(LinphoneProxyConfig *cfg, bool_t enable);
 
@@ -1021,6 +1036,7 @@ LINPHONE_PUBLIC void linphone_proxy_config_enable_avpf(LinphoneProxyConfig *cfg,
  * Indicates whether AVPF/SAVPF is being used for calls using this proxy config.
  * @param[in] cfg #LinphoneProxyConfig object
  * @return True if AVPF/SAVPF is enabled, false otherwise.
+ * @deprecated use linphone_proxy_config_set_avpf_mode()
  */
 LINPHONE_PUBLIC bool_t linphone_proxy_config_avpf_enabled(LinphoneProxyConfig *cfg);
 
@@ -1037,6 +1053,20 @@ LINPHONE_PUBLIC void linphone_proxy_config_set_avpf_rr_interval(LinphoneProxyCon
  * @return The interval in seconds.
  */
 LINPHONE_PUBLIC uint8_t linphone_proxy_config_get_avpf_rr_interval(const LinphoneProxyConfig *cfg);
+
+/**
+ * Get enablement status of RTCP feedback (also known as AVPF profile).
+ * @param[in] cfg the proxy config
+ * @return the enablement mode, which can be LinphoneAVPFDefault (use LinphoneCore's mode), LinphoneAVPFEnabled (avpf is enabled), or LinphoneAVPFDisabled (disabled).
+**/
+LINPHONE_PUBLIC LinphoneAVPFMode linphone_proxy_config_get_avpf_mode(const LinphoneProxyConfig *cfg);
+
+/**
+ * Enable the use of RTCP feedback (also known as AVPF profile).
+ * @param[in] cfg the proxy config
+ * @param[in] mode the enablement mode, which can be LinphoneAVPFDefault (use LinphoneCore's mode), LinphoneAVPFEnabled (avpf is enabled), or LinphoneAVPFDisabled (disabled).
+**/
+LINPHONE_PUBLIC void linphone_proxy_config_set_avpf_mode(LinphoneProxyConfig *cfg, LinphoneAVPFMode mode);
 
 /**
  * @}
@@ -1612,6 +1642,13 @@ typedef enum _LinphoneConfiguringState {
 typedef void (*LinphoneCoreConfiguringStatusCb)(LinphoneCore *lc, LinphoneConfiguringState status, const char *message);
 
 /**
+ * Callback prototype for reporting network change either automatically detected or notified by #linphone_core_set_network_reachable.
+ * @param lc the LinphoneCore
+ * @param reachable true if network is reachable.
+ */
+typedef void (*LinphoneCoreNetworkReachableCb)(LinphoneCore *lc, bool_t reachable);
+
+/**
  * This structure holds all callbacks that the application should implement.
  *  None is mandatory.
 **/
@@ -1645,7 +1682,20 @@ typedef struct _LinphoneCoreVTable{
 	LinphoneCoreFileTransferRecvCb file_transfer_recv; /** Callback to store file received attached to a #LinphoneChatMessage */
 	LinphoneCoreFileTransferSendCb file_transfer_send; /** Callback to collect file chunk to be sent for a #LinphoneChatMessage */
 	LinphoneCoreFileTransferProgressIndicationCb file_transfer_progress_indication; /**Callback to indicate file transfer progress*/
+	LinphoneCoreNetworkReachableCb network_reachable; /** Call back to report IP network status (I.E up/down)*/
 } LinphoneCoreVTable;
+
+/**
+ * Instantiate a vtable with all argument set to NULL
+ * @returns newly allocated vtable
+ */
+LINPHONE_PUBLIC LinphoneCoreVTable *linphone_vtable_new();
+
+/**
+ * destroy a vtable.
+ * @param vtable to be destroyed
+ */
+LINPHONE_PUBLIC void linphone_vtable_destroy(LinphoneCoreVTable* table);
 
 /**
  * @}
@@ -1751,24 +1801,26 @@ LINPHONE_PUBLIC LinphoneCore *linphone_core_new_with_config(const LinphoneCoreVT
 /* function to be periodically called in a main loop */
 /* For ICE to work properly it should be called every 20ms */
 LINPHONE_PUBLIC	void linphone_core_iterate(LinphoneCore *lc);
-#if 0 /*not implemented yet*/
+
 /**
  * @ingroup initializing
- * Provide Linphone Core with an unique identifier. This be later used to identified contact address coming from this device.
- * Value is not saved.
+ * add a listener to be notified of linphone core events. Once events are received, registered vtable are invoked in order.
+ * @param vtable a LinphoneCoreVTable structure holding your application callbacks. Object is owned by linphone core until linphone_core_remove_listener.
  * @param lc object
  * @param string identifying the device, can be EMEI or UDID
  *
  */
-void linphone_core_set_device_identifier(LinphoneCore *lc,const char* device_id);
+LINPHONE_PUBLIC void linphone_core_add_listener(LinphoneCore *lc, LinphoneCoreVTable *vtable);
 /**
  * @ingroup initializing
- * get Linphone unique identifier
+ * remove a listener registred by linphone_core_add_listener.
+ * @param vtable a LinphoneCoreVTable structure holding your application callbacks
+ * @param lc object
+ * @param string identifying the device, can be EMEI or UDID
  *
  */
-const char*  linphone_core_get_device_identifier(const LinphoneCore *lc);
+LINPHONE_PUBLIC void linphone_core_remove_listener(LinphoneCore *lc, const LinphoneCoreVTable *vtable);
 
-#endif
 
 /*sets the user-agent string in sip messages, ideally called just after linphone_core_new() or linphone_core_init() */
 LINPHONE_PUBLIC	void linphone_core_set_user_agent(LinphoneCore *lc, const char *ua_name, const char *version);
@@ -2754,7 +2806,7 @@ typedef struct _LinphoneTunnel LinphoneTunnel;
 /**
 * get tunnel instance if available
 */
-LINPHONE_PUBLIC	LinphoneTunnel *linphone_core_get_tunnel(LinphoneCore *lc);
+LINPHONE_PUBLIC	LinphoneTunnel *linphone_core_get_tunnel(const LinphoneCore *lc);
 
 LINPHONE_PUBLIC void linphone_core_set_sip_dscp(LinphoneCore *lc, int dscp);
 LINPHONE_PUBLIC int linphone_core_get_sip_dscp(const LinphoneCore *lc);
@@ -2872,6 +2924,12 @@ LINPHONE_PUBLIC const char ** linphone_core_get_supported_file_formats(LinphoneC
 LINPHONE_PUBLIC void linphone_core_add_supported_tag(LinphoneCore *core, const char *tag);
 
 LINPHONE_PUBLIC void linphone_core_remove_supported_tag(LinphoneCore *core, const char *tag);
+
+LINPHONE_PUBLIC void linphone_core_set_avpf_mode(LinphoneCore *lc, LinphoneAVPFMode mode);
+
+LINPHONE_PUBLIC LinphoneAVPFMode linphone_core_get_avpf_mode(const LinphoneCore *lc);
+
+LINPHONE_PUBLIC int linphone_core_get_avpf_rr_interval(const LinphoneCore *lc);
 
 #ifdef __cplusplus
 }

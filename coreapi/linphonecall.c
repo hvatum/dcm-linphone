@@ -153,17 +153,14 @@ static uint16_t linphone_call_get_avpf_rr_interval(const LinphoneCall *call) {
 }
 
 static void propagate_encryption_changed(LinphoneCall *call){
-	LinphoneCore *lc=call->core;
 	if (!linphone_call_all_streams_encrypted(call)) {
 		ms_message("Some streams are not encrypted");
 		call->current_params->media_encryption=LinphoneMediaEncryptionNone;
-		if (lc->vtable.call_encryption_changed)
-			lc->vtable.call_encryption_changed(call->core, call, FALSE, call->auth_token);
+		linphone_core_notify_call_encryption_changed(call->core, call, FALSE, call->auth_token);
 	} else {
 		ms_message("All streams are encrypted");
 		call->current_params->media_encryption=LinphoneMediaEncryptionZRTP;
-		if (lc->vtable.call_encryption_changed)
-			lc->vtable.call_encryption_changed(call->core, call, TRUE, call->auth_token);
+		linphone_core_notify_call_encryption_changed(call->core, call, TRUE, call->auth_token);
 	}
 }
 
@@ -173,9 +170,9 @@ static void linphone_call_audiostream_encryption_changed(void *data, bool_t encr
 
 	call = (LinphoneCall *)data;
 
-	if (encrypted && call->core->vtable.display_status != NULL) {
+	if (encrypted) {
 		snprintf(status,sizeof(status)-1,_("Authentication token is %s"),call->auth_token);
-		 call->core->vtable.display_status(call->core, status);
+		linphone_core_notify_display_status(call->core, status);
 	}
 
 	propagate_encryption_changed(call);
@@ -662,7 +659,7 @@ static void linphone_call_get_local_ip(LinphoneCall *call, const LinphoneAddress
 		}
 		if (res != NULL) freeaddrinfo(res);
 	}
-	if (linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseNatAddress
+	if (_linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseNatAddress
 		&& (ip=linphone_core_get_nat_address_resolved(call->core))!=NULL){
 		strncpy(call->localip,ip,LINPHONE_IPADDR_SIZE);
 		return;
@@ -699,11 +696,11 @@ LinphoneCall * linphone_call_new_outgoing(struct _LinphoneCore *lc, LinphoneAddr
 	linphone_call_init_common(call,from,to);
 	call->params = linphone_call_params_copy(params);
 
-	if (linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) {
+	if (_linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) {
 		call->ice_session = ice_session_new();
 		ice_session_set_role(call->ice_session, IR_Controlling);
 	}
-	if (linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseStun) {
+	if (_linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseStun) {
 		call->ping_time=linphone_core_run_stun_tests(call->core,call);
 	}
 #ifdef BUILD_UPNP
@@ -741,7 +738,7 @@ void linphone_call_set_compatible_incoming_call_parameters(LinphoneCall *call, c
 		if (call->dest_proxy != NULL) {
 			call->params->avpf_rr_interval = linphone_proxy_config_get_avpf_rr_interval(call->dest_proxy) * 1000;
 		} else {
-			call->params->avpf_rr_interval = 5000;
+			call->params->avpf_rr_interval = linphone_core_get_avpf_rr_interval(call->core)*1000;
 		}
 	}
 	if ((sal_media_description_has_srtp(md) == TRUE) && (media_stream_srtp_supported() == TRUE)) {
@@ -802,7 +799,7 @@ LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *fro
 		// In this case WE chose the media parameters according to policy.
 		linphone_call_set_compatible_incoming_call_parameters(call, md);
 	}
-	fpol=linphone_core_get_firewall_policy(call->core);
+	fpol=_linphone_core_get_firewall_policy(call->core);
 	/*create the ice session now if ICE is required*/
 	if (fpol==LinphonePolicyUseIce){
 		if (md){
@@ -974,8 +971,8 @@ void linphone_call_set_state_base(LinphoneCall *call, LinphoneCallState cstate, 
 			call->media_start_time=time(NULL);
 		}
 
-		if (lc->vtable.call_state_changed && !silently)
-			lc->vtable.call_state_changed(lc,call,cstate,message);
+		if (!silently)
+			linphone_core_notify_call_state_changed(lc,call,cstate,message);
 
 		linphone_reporting_call_state_updated(call);
 
@@ -1457,7 +1454,7 @@ static void port_config_set_random_choosed(LinphoneCall *call, int stream_index,
 
 static void _linphone_call_prepare_ice_for_stream(LinphoneCall *call, int stream_index, bool_t create_checklist){
 	MediaStream *ms=stream_index == 0 ? (MediaStream*)call->audiostream : (MediaStream*)call->videostream;
-	if ((linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) && (call->ice_session != NULL)){
+	if ((_linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) && (call->ice_session != NULL)){
 		IceCheckList *cl;
 		rtp_session_set_pktinfo(ms->sessions.rtp_session, TRUE);
 		rtp_session_set_symmetric_rtp(ms->sessions.rtp_session, FALSE);
@@ -1478,7 +1475,7 @@ int linphone_call_prepare_ice(LinphoneCall *call, bool_t incoming_offer){
 	SalMediaDescription *remote = NULL;
 	bool_t has_video=FALSE;
 
-	if ((linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) && (call->ice_session != NULL)){
+	if ((_linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) && (call->ice_session != NULL)){
 		if (incoming_offer){
 			remote=sal_call_get_remote_media_description(call->op);
 			has_video=call->params->has_video && linphone_core_media_description_contains_video_stream(remote);
@@ -1640,8 +1637,7 @@ static void linphone_core_dtmf_received(LinphoneCore *lc, int dtmf){
 		ms_warning("Bad dtmf value %i",dtmf);
 		return;
 	}
-	if (lc->vtable.dtmf_received != NULL)
-		lc->vtable.dtmf_received(lc, linphone_core_get_current_call(lc), dtmf_tab[dtmf]);
+	linphone_core_notify_dtmf_received(lc, linphone_core_get_current_call(lc), dtmf_tab[dtmf]);
 }
 
 static void parametrize_equalizer(LinphoneCore *lc, AudioStream *st){
@@ -1728,7 +1724,7 @@ static void post_configure_audio_streams(LinphoneCall*call){
 	AudioStream *st=call->audiostream;
 	LinphoneCore *lc=call->core;
 	_post_configure_audio_stream(st,lc,call->audio_muted);
-	if (lc->vtable.dtmf_received!=NULL){
+	if (linphone_core_dtmf_received_has_listener(lc)){
 		audio_stream_play_received_dtmfs(call->audiostream,FALSE);
 	}
 	if (call->record_active)
@@ -2713,8 +2709,7 @@ static void linphone_core_disconnected(LinphoneCore *lc, LinphoneCall *call){
 	if (from) ms_free(from);
 
 	ms_message("On call [%p]: %s",call,temp);
-	if (lc->vtable.display_warning!=NULL)
-		lc->vtable.display_warning(lc,temp);
+	linphone_core_notify_display_warning(lc,temp);
 	linphone_core_terminate_call(lc,call);
 	linphone_core_play_named_tone(lc,LinphoneToneCallLost);
 }
@@ -2836,8 +2831,7 @@ void linphone_call_notify_stats_updated(LinphoneCall *call, int stream_index){
 	LinphoneCore *lc=call->core;
 	if (stats->updated){
 		linphone_reporting_on_rtcp_update(call, stream_index);
-		if (lc->vtable.call_stats_updated)
-			lc->vtable.call_stats_updated(lc, call, stats);
+		linphone_core_notify_call_stats_updated(lc, call, stats);
 		stats->updated = 0;
 	}
 }
@@ -2932,8 +2926,7 @@ void linphone_call_log_completed(LinphoneCall *call){
 		info=ortp_strdup_printf(ngettext("You have missed %i call.",
 										 "You have missed %i calls.", lc->missed_calls),
 								lc->missed_calls);
-		if (lc->vtable.display_status!=NULL)
-			lc->vtable.display_status(lc,info);
+		linphone_core_notify_display_status(lc,info);
 		ms_free(info);
 	}
 	lc->call_logs=ms_list_prepend(lc->call_logs,linphone_call_log_ref(call->log));
@@ -2947,9 +2940,7 @@ void linphone_call_log_completed(LinphoneCall *call){
 		linphone_call_log_unref((LinphoneCallLog*)elem->data);
 		lc->call_logs=ms_list_remove_link(lc->call_logs,elem);
 	}
-	if (lc->vtable.call_log_updated!=NULL){
-		lc->vtable.call_log_updated(lc,call->log);
-	}
+	linphone_core_notify_call_log_updated(lc,call->log);
 	call_logs_write_to_config_file(lc);
 }
 
@@ -2968,8 +2959,7 @@ void linphone_call_set_transfer_state(LinphoneCall* call, LinphoneCallState stat
 						,linphone_call_state_to_string(call->transfer_state)
 						,linphone_call_state_to_string(state));
 		call->transfer_state = state;
-		if (lc->vtable.transfer_state_changed)
-			lc->vtable.transfer_state_changed(lc, call, state);
+		linphone_core_notify_transfer_state_changed(lc, call, state);
 	}
 }
 
@@ -3018,7 +3008,7 @@ static LinphoneAddress *get_fixed_contact(LinphoneCore *lc, LinphoneCall *call ,
 	const char *localip=call->localip;
 
 	/* first use user's supplied ip address if asked*/
-	if (linphone_core_get_firewall_policy(lc)==LinphonePolicyUseNatAddress){
+	if (_linphone_core_get_firewall_policy(lc)==LinphonePolicyUseNatAddress){
 		ctt=linphone_core_get_primary_contact_parsed(lc);
 		linphone_address_set_domain(ctt,linphone_core_get_nat_address_resolved(lc));
 		ret=ctt;
