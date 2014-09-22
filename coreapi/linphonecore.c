@@ -692,7 +692,7 @@ static void build_video_devices_table(LinphoneCore *lc){
 
 static void video_config_read(LinphoneCore *lc){
 #ifdef VIDEO_ENABLED
-	int capture, display, self_view, reuse_source;
+	int capture, display, self_view;
 	int automatic_video=1;
 #endif
 	const char *str;
@@ -721,14 +721,12 @@ static void video_config_read(LinphoneCore *lc){
 	capture=lp_config_get_int(lc->config,"video","capture",1);
 	display=lp_config_get_int(lc->config,"video","display",1);
 	self_view=lp_config_get_int(lc->config,"video","self_view",1);
-	reuse_source=lp_config_get_int(lc->config,"video","reuse_source",0);
 	vpol.automatically_initiate=lp_config_get_int(lc->config,"video","automatically_initiate",automatic_video);
 	vpol.automatically_accept=lp_config_get_int(lc->config,"video","automatically_accept",automatic_video);
 	linphone_core_enable_video_capture(lc, capture);
 	linphone_core_enable_video_display(lc, display);
 	linphone_core_enable_video_preview(lc,lp_config_get_int(lc->config,"video","show_local",0));
 	linphone_core_enable_self_view(lc,self_view);
-	linphone_core_enable_video_source_reuse(lc, reuse_source);
 	linphone_core_set_video_policy(lc,&vpol);
 #endif
 }
@@ -2505,8 +2503,10 @@ static void linphone_transfer_routes_to_op(MSList *routes, SalOp *op){
 	MSList *it;
 	for(it=routes;it!=NULL;it=it->next){
 		SalAddress *addr=(SalAddress*)it->data;
-		sal_op_add_route_address(op,addr);
-		sal_address_destroy(addr);
+                if (addr) {
+	    	    sal_op_add_route_address(op,addr);
+		    sal_address_destroy(addr);
+                }
 	}
 	ms_list_free(routes);
 }
@@ -4468,7 +4468,7 @@ LinphoneFirewallPolicy _linphone_core_get_firewall_policy_with_lie(const Linphon
 	const char *policy;
 	if(lie) {
 		LinphoneTunnel *tunnel = linphone_core_get_tunnel(lc);
-		if(tunnel != NULL && linphone_tunnel_get_mode(tunnel)) {
+		if(tunnel != NULL && linphone_tunnel_enabled(tunnel)) {
 			return LinphonePolicyNoFirewall;
 		}
 	}
@@ -4593,18 +4593,6 @@ void linphone_core_enable_video_display(LinphoneCore *lc, bool_t enable) {
 	}
 	/* Need to re-apply network bandwidth settings. */
 	reapply_network_bandwidth_settings(lc);
-}
-
-void linphone_core_enable_video_source_reuse(LinphoneCore* lc, bool_t enable){
-#ifndef VIDEO_ENABLED
-	if (enable == TRUE) {
-		ms_warning("Cannot enable video display, this version of linphone was built without video support.");
-	}
-#endif
-	lc->video_conf.reuse_preview_source = enable;
-	if( linphone_core_ready(lc) ){
-		lp_config_set_int(lc->config, "video", "reuse_source", lc->video_conf.reuse_preview_source);
-	}
 }
 
 bool_t linphone_core_video_capture_enabled(LinphoneCore *lc) {

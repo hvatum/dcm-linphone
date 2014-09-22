@@ -50,12 +50,6 @@ extern "C"
 
 typedef struct _LinphoneTunnelConfig LinphoneTunnelConfig;
 
-typedef enum _LinphoneTunnelMode {
-	LinphoneTunnelModeDisable,
-	LinphoneTunnelModeEnable,
-	LinphoneTunnelModeAuto
-} LinphoneTunnelMode;
-
 /**
  * Create a new tunnel configuration
  */
@@ -137,47 +131,43 @@ LINPHONE_PUBLIC void linphone_tunnel_config_destroy(LinphoneTunnelConfig *tunnel
 LINPHONE_PUBLIC void linphone_tunnel_add_server(LinphoneTunnel *tunnel, LinphoneTunnelConfig *tunnel_config);
 
 /**
- * @brief Remove tunnel server configuration
+ * Remove tunnel server configuration
+ *
  * @param tunnel object
  * @param tunnel_config object
  */
 LINPHONE_PUBLIC void linphone_tunnel_remove_server(LinphoneTunnel *tunnel, LinphoneTunnelConfig *tunnel_config);
 
 /**
- * @brief Get added servers
- * @param  tunnel A LinphoneTunnel object
- * @return A list of LinphoneTunnelConfig objects
- */
+ * @param  tunnel object
+ * returns a string of space separated list of host:port of tunnel server addresses
+ * */
 LINPHONE_PUBLIC const MSList *linphone_tunnel_get_servers(const LinphoneTunnel *tunnel);
 
 /**
- * @brief Removes all tunnel server address previously entered with addServer()
- * @param  tunnel A LinphoneTunnel object
+ * @param  tunnel object
+ * Removes all tunnel server address previously entered with addServer()
 **/
 LINPHONE_PUBLIC void linphone_tunnel_clean_servers(LinphoneTunnel *tunnel);
 
 /**
- * @brief Set tunnel mode
- * The tunnel mode can be 'enable', 'disable' or 'auto'
- * If the mode is set to 'auto', the tunnel manager will try to established an RTP session
- * with the tunnel server on the UdpMirrorPort. If the connection fail, the tunnel is automatically
- * activated whereas the tunnel is automatically disabled if the connection succeed.
+ * Sets whether tunneling of SIP and RTP is required.
  * @param  tunnel object
- * @param mode See #LinphoneTunnelMode
+ * @param enabled If true enter in tunneled mode, if false exits from tunneled mode.
+ * The TunnelManager takes care of refreshing SIP registration when switching on or off the tunneled mode.
+ *
 **/
-LINPHONE_PUBLIC void linphone_tunnel_set_mode(LinphoneTunnel *tunnel, LinphoneTunnelMode mode);
+LINPHONE_PUBLIC void linphone_tunnel_enable(LinphoneTunnel *tunnel, bool_t enabled);
 
 /**
- * @brief Get the tunnel mode
- * @param  tunnel A LinphoneTunnel object
- * @return Return a #LinphoneTunnelMode enumeration
+ * @param  tunnel object
+ * Returns a boolean indicating whether tunneled operation is enabled.
 **/
-LINPHONE_PUBLIC LinphoneTunnelMode linphone_tunnel_get_mode(const LinphoneTunnel *tunnel);
+LINPHONE_PUBLIC bool_t linphone_tunnel_enabled(const LinphoneTunnel *tunnel);
 
 /**
- * @brief Check whether the tunnel is connected
- * @param  tunnel LinphoneTunnel object
- * @return True if the tunnel is connected
+ * @param  tunnel object
+ * Returns a boolean indicating whether tunnel is connected successfully.
 **/
 LINPHONE_PUBLIC bool_t linphone_tunnel_connected(const LinphoneTunnel *tunnel);
 
@@ -189,6 +179,22 @@ LINPHONE_PUBLIC bool_t linphone_tunnel_connected(const LinphoneTunnel *tunnel);
  * the lost connection to be closed and new connection to be issued.
 **/
 LINPHONE_PUBLIC void linphone_tunnel_reconnect(LinphoneTunnel *tunnel);
+
+/**
+ * Start tunnel need detection.
+ * @param  tunnel object
+ * In auto detect mode, the tunnel manager try to establish a real time rtp cummunication with the tunnel server on  specified port.
+ *<br>In case of success, the tunnel is automatically turned off. Otherwise, if no udp commmunication is feasible, tunnel mode is turned on.
+ *<br> Call this method each time to run the auto detection algorithm
+ */
+LINPHONE_PUBLIC void linphone_tunnel_auto_detect(LinphoneTunnel *tunnel);
+
+/**
+ * Tells whether tunnel auto detection is enabled.
+ * @param[in] tunnel LinphoneTunnel object.
+ * @return TRUE if auto detection is enabled, FALSE otherwise.
+ */
+LINPHONE_PUBLIC bool_t linphone_tunnel_auto_detect_enabled(LinphoneTunnel *tunnel);
 
 /**
  * @brief Set whether SIP packets must be directly sent to a UA or pass through the tunnel
@@ -224,49 +230,7 @@ LINPHONE_PUBLIC void linphone_tunnel_set_http_proxy(LinphoneTunnel *tunnel, cons
  **/
 LINPHONE_PUBLIC void linphone_tunnel_get_http_proxy(LinphoneTunnel*tunnel,const char **host, int *port, const char **username, const char **passwd);
 
-/**
- * @brief Set authentication info for the http proxy
- * @param tunnel LinphoneTunnel object
- * @param username User name
- * @param passwd Password
- */
 LINPHONE_PUBLIC void linphone_tunnel_set_http_proxy_auth_info(LinphoneTunnel*tunnel, const char* username,const char* passwd);
-
-/**
- * @deprecated Replaced by linphone_tunnel_set_mode()
- * @brief Sets whether tunneling of SIP and RTP is required.
- * @param  tunnel object
- * @param enabled If true enter in tunneled mode, if false exits from tunneled mode.
- * The TunnelManager takes care of refreshing SIP registration when switching on or off the tunneled mode.
- *
-**/
-LINPHONE_PUBLIC void linphone_tunnel_enable(LinphoneTunnel *tunnel, bool_t enabled);
-
-/**
- * @deprecated Replaced by linphone_tunnel_get_mode()
- * @brief Check whether tunnel is enabled
- * @param  tunnel Tunnel object
- * @return Returns a boolean indicating whether tunneled operation is enabled.
-**/
-LINPHONE_PUBLIC bool_t linphone_tunnel_enabled(const LinphoneTunnel *tunnel);
-
-/**
- * @deprecated Replaced by linphone_tunnel_set_mode(LinphoneTunnelModeAuto)
- * @brief Start tunnel need detection.
- * @param  tunnel object
- * In auto detect mode, the tunnel manager try to establish a real time rtp cummunication with the tunnel server on  specified port.
- * <br>In case of success, the tunnel is automatically turned off. Otherwise, if no udp commmunication is feasible, tunnel mode is turned on.
- * <br> Call this method each time to run the auto detection algorithm
- */
-LINPHONE_PUBLIC void linphone_tunnel_auto_detect(LinphoneTunnel *tunnel);
-
-/**
- * @deprecated Replaced by linphone_tunnel_get_mode()
- * @brief Tells whether tunnel auto detection is enabled.
- * @param[in] tunnel LinphoneTunnel object.
- * @return TRUE if auto detection is enabled, FALSE otherwise.
- */
-LINPHONE_PUBLIC bool_t linphone_tunnel_auto_detect_enabled(LinphoneTunnel *tunnel);
 
 
 /**
