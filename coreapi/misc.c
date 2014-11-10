@@ -117,8 +117,9 @@ void linphone_core_set_payload_type_bitrate(LinphoneCore *lc, LinphonePayloadTyp
 			ms_error("Cannot set an explicit bitrate for codec %s/%i, because it is not VBR.",pt->mime_type,pt->clock_rate);
 			return;
 		}
+	} else {
+		ms_error("linphone_core_set_payload_type_bitrate() payload type not in audio or video list !");
 	}
-	ms_error("linphone_core_set_payload_type_bitrate() payload type not in audio or video list !");
 }
 
 
@@ -685,7 +686,7 @@ void linphone_core_update_ice_state_in_call_stats(LinphoneCall *call)
 			} else {
 				call->stats[LINPHONE_CALL_STATS_VIDEO].ice_state = LinphoneIceStateFailed;
 			}
-		}
+		}else call->stats[LINPHONE_CALL_STATS_VIDEO].ice_state = LinphoneIceStateNotActivated;
 	} else if (session_state == IS_Running) {
 		call->stats[LINPHONE_CALL_STATS_AUDIO].ice_state = LinphoneIceStateInProgress;
 		if (call->params->has_video && (video_check_list != NULL)) {

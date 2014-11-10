@@ -481,7 +481,7 @@ typedef struct _LinphoneVideoPolicy LinphoneVideoPolicy;
  * @ingroup initializing
 **/
 enum _LinphoneIceState{
-	LinphoneIceStateNotActivated, /**< ICE has not been activated for this call */
+	LinphoneIceStateNotActivated, /**< ICE has not been activated for this call or stream*/
 	LinphoneIceStateFailed, /**< ICE processing has failed */
 	LinphoneIceStateInProgress, /**< ICE process is in progress */
 	LinphoneIceStateHostConnection, /**< ICE has established a direct connection to the remote host */
@@ -730,6 +730,7 @@ LINPHONE_PUBLIC void linphone_call_zoom_video(LinphoneCall* call, float zoom_fac
 LINPHONE_PUBLIC	void linphone_call_start_recording(LinphoneCall *call);
 LINPHONE_PUBLIC	void linphone_call_stop_recording(LinphoneCall *call);
 LINPHONE_PUBLIC LinphonePlayer * linphone_call_get_player(LinphoneCall *call);
+LINPHONE_PUBLIC bool_t linphone_call_media_in_progress(LinphoneCall *call);
 
 /**
  * Return TRUE if this call is currently part of a conference
@@ -1694,7 +1695,7 @@ typedef void (*LinphoneCoreLogCollectionUploadStateChangedCb)(LinphoneCore *lc, 
  * @param[in] lc LinphoneCore object
  * @param[in] progress Percentage of the file size of the log collection already uploaded.
  */
-typedef void (*LinphoneCoreLogCollectionUploadProgressIndicationCb)(LinphoneCore *lc, size_t progress);
+typedef void (*LinphoneCoreLogCollectionUploadProgressIndicationCb)(LinphoneCore *lc, size_t offset, size_t total);
 
 /**
  * This structure holds all callbacks that the application should implement.
@@ -1780,12 +1781,32 @@ typedef void * (*LinphoneCoreWaitingCallback)(LinphoneCore *lc, void *context, L
 
 /* THE main API */
 
+typedef enum _LinphoneLogCollectionState {
+	LinphoneLogCollectionDisabled,
+	LinphoneLogCollectionEnabled,
+	LinphoneLogCollectionEnabledWithoutPreviousLogHandler
+} LinphoneLogCollectionState;
+
+/**
+ * Tells whether the linphone core log collection is enabled.
+ * @ingroup misc
+ * @returns The state of the linphone core log collection.
+ */
+LINPHONE_PUBLIC LinphoneLogCollectionState linphone_core_log_collection_enabled(void);
+
 /**
  * Enable the linphone core log collection to upload logs on a server.
  * @ingroup misc
- * @param[in] enable Boolean value telling whether to enable log collection or not.
+ * @param[in] state LinphoneLogCollectionState value telling whether to enable log collection or not.
  */
-LINPHONE_PUBLIC void linphone_core_enable_log_collection(bool_t enable);
+LINPHONE_PUBLIC void linphone_core_enable_log_collection(LinphoneLogCollectionState state);
+
+/**
+ * Get the path where the log files will be written for log collection.
+ * @ingroup misc
+ * @returns The path where the log files will be written.
+ */
+LINPHONE_PUBLIC const char * linphone_core_get_log_collection_path(void);
 
 /**
  * Set the path where the log files will be written for log collection.
@@ -1793,6 +1814,38 @@ LINPHONE_PUBLIC void linphone_core_enable_log_collection(bool_t enable);
  * @param[in] path The path where the log files will be written.
  */
 LINPHONE_PUBLIC void linphone_core_set_log_collection_path(const char *path);
+
+/**
+ * Get the prefix of the filenames that will be used for log collection.
+ * @ingroup misc
+ * @returns The prefix of the filenames used for log collection.
+ */
+LINPHONE_PUBLIC const char * linphone_core_get_log_collection_prefix(void);
+
+/**
+ * Set the prefix of the filenames that will be used for log collection.
+ * @ingroup misc
+ * @param[in] prefix The prefix to use for the filenames for log collection.
+ */
+LINPHONE_PUBLIC void linphone_core_set_log_collection_prefix(const char *prefix);
+
+/**
+ * Get the max file size in bytes of the files used for log collection.
+ * @ingroup misc
+ * @returns The max file size in bytes of the files used for log collection.
+ */
+LINPHONE_PUBLIC int linphone_core_get_log_collection_max_file_size(void);
+
+/**
+ * Set the max file size in bytes of the files used for log collection.
+ * Warning: this function should only not be used to change size
+ * dynamically but instead only before calling @see
+ * linphone_core_enable_log_collection. If you increase max size
+  * on runtime, logs chronological order COULD be broken.
+ * @ingroup misc
+ * @param[in] size The max file size in bytes of the files used for log collection.
+ */
+LINPHONE_PUBLIC void linphone_core_set_log_collection_max_file_size(int size);
 
 /**
  * Set the url of the server where to upload the collected log files.
@@ -1812,17 +1865,15 @@ LINPHONE_PUBLIC void linphone_core_upload_log_collection(LinphoneCore *core);
 /**
  * Compress the log collection in a single file.
  * @ingroup misc
- * @param[in] core LinphoneCore object
  * @return The path of the compressed log collection file (to be freed calling ms_free()).
  */
-LINPHONE_PUBLIC char * linphone_core_compress_log_collection(LinphoneCore *core);
+LINPHONE_PUBLIC char * linphone_core_compress_log_collection();
 
 /**
  * Reset the log collection by removing the log files.
  * @ingroup misc
- * @param[in] core LinphoneCore object
  */
-LINPHONE_PUBLIC void linphone_core_reset_log_collection(LinphoneCore *core);
+LINPHONE_PUBLIC void linphone_core_reset_log_collection();
 
 /**
  * Define a log handler.
@@ -2609,7 +2660,14 @@ LINPHONE_PUBLIC void linphone_core_set_preferred_video_size(LinphoneCore *lc, MS
 LINPHONE_PUBLIC void linphone_core_set_preview_video_size(LinphoneCore *lc, MSVideoSize vsize);
 LINPHONE_PUBLIC void linphone_core_set_preview_video_size_by_name(LinphoneCore *lc, const char *name);
 LINPHONE_PUBLIC MSVideoSize linphone_core_get_preview_video_size(const LinphoneCore *lc);
-LINPHONE_PUBLIC MSVideoSize linphone_core_get_preferred_video_size(LinphoneCore *lc);
+LINPHONE_PUBLIC MSVideoSize linphone_core_get_preferred_video_size(const LinphoneCore *lc);
+
+/**
+ * Get the name of the current preferred video size for sending.
+ * @param[in] lc #LinphoneCore object.
+ * @returns A string containing the name of the current preferred video size (to be freed with ms_free()).
+ */
+LINPHONE_PUBLIC char * linphone_core_get_preferred_video_size_name(const LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_set_preferred_video_size_by_name(LinphoneCore *lc, const char *name);
 LINPHONE_PUBLIC void linphone_core_set_preferred_framerate(LinphoneCore *lc, float fps);
 LINPHONE_PUBLIC float linphone_core_get_preferred_framerate(LinphoneCore *lc);

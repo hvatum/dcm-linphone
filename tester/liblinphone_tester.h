@@ -58,6 +58,7 @@ extern test_suite_t flexisip_test_suite;
 extern test_suite_t stun_test_suite;
 extern test_suite_t remote_provisioning_test_suite;
 extern test_suite_t quality_reporting_test_suite;
+extern test_suite_t log_collection_test_suite;
 extern test_suite_t transport_test_suite;
 extern test_suite_t player_test_suite;
 
@@ -75,6 +76,7 @@ extern void liblinphone_tester_uninit(void);
 extern int liblinphone_tester_run_tests(const char *suite_name, const char *test_name);
 extern void liblinphone_tester_set_fileprefix(const char* file_prefix);
 extern void liblinphone_tester_set_writable_dir_prefix(const char* writable_dir_prefix);
+extern int liblinphone_tester_ipv6_available(void);
 
 #ifdef __cplusplus
 };
@@ -211,6 +213,11 @@ typedef struct _LinphoneCoreManager {
 	bool_t decline_subscribe;
 } LinphoneCoreManager;
 
+typedef struct _LinphoneCallTestParams {
+	LinphoneCallParams *base;
+	bool_t sdp_removal;
+} LinphoneCallTestParams;
+
 LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_for_proxies);
 LinphoneCoreManager* linphone_core_manager_new(const char* rc_file);
 void linphone_core_manager_stop(LinphoneCoreManager *mgr);
@@ -245,6 +252,11 @@ bool_t call_with_params(LinphoneCoreManager* caller_mgr
 						,LinphoneCoreManager* callee_mgr
 						, const LinphoneCallParams *caller_params
 						, const LinphoneCallParams *callee_params);
+bool_t call_with_test_params(LinphoneCoreManager* caller_mgr
+				,LinphoneCoreManager* callee_mgr
+				,const LinphoneCallTestParams *caller_test_params
+				,const LinphoneCallTestParams *callee_test_params);
+
 bool_t call(LinphoneCoreManager* caller_mgr,LinphoneCoreManager* callee_mgr);
 void end_call(LinphoneCoreManager *m1, LinphoneCoreManager *m2);
 stats * get_stats(LinphoneCore *lc);

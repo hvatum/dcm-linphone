@@ -715,7 +715,6 @@ public:
 	static void infoReceived(LinphoneCore *lc, LinphoneCall*call, const LinphoneInfoMessage *info){
 		JNIEnv *env = 0;
 		jint result = jvm->AttachCurrentThread(&env,NULL);
-		jobject jcall;
 		if (result != 0) {
 			ms_error("cannot attach VM");
 			return;
@@ -4024,7 +4023,7 @@ JNIEXPORT void JNICALL Java_org_linphone_core_LinphoneInfoMessageImpl_addHeader(
  * Signature: (JLjava/lang/String;)Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL Java_org_linphone_core_LinphoneInfoMessageImpl_getHeader(JNIEnv *env, jobject jobj, jlong infoptr, jstring jname){
-	const char *name=name=env->GetStringUTFChars(jname,NULL);
+	const char *name=env->GetStringUTFChars(jname,NULL);
 	const char *ret=linphone_info_message_get_header((LinphoneInfoMessage*)infoptr,name);
 	env->ReleaseStringUTFChars(jname,name);
 	return ret ? env->NewStringUTF(ret) : NULL;
@@ -4696,6 +4695,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresenceActivityImpl_setDescriptio
 	const char *cdescription = description ? env->GetStringUTFChars(description, NULL) : NULL;
 	linphone_presence_activity_set_description(activity, cdescription);
 	if (cdescription) env->ReleaseStringUTFChars(description, cdescription);
+	return (jint)0;
 }
 
 /*
@@ -4747,6 +4747,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresenceServiceImpl_setId(JNIEnv *
 	const char *cid = id ? env->GetStringUTFChars(id, NULL) : NULL;
 	linphone_presence_service_set_id(service, cid);
 	if (cid) env->ReleaseStringUTFChars(id, cid);
+	return (jint)0;
 }
 
 /*
@@ -4792,6 +4793,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresenceServiceImpl_setContact(JNI
 	const char *ccontact = contact ? env->GetStringUTFChars(contact, NULL) : NULL;
 	linphone_presence_service_set_contact(service, ccontact);
 	if (ccontact) env->ReleaseStringUTFChars(contact, ccontact);
+	return (jint)0;
 }
 
 /*
@@ -4882,6 +4884,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresencePersonImpl_setId(JNIEnv *e
 	const char *cid = id ? env->GetStringUTFChars(id, NULL) : NULL;
 	linphone_presence_person_set_id(person, cid);
 	if (cid) env->ReleaseStringUTFChars(id, cid);
+	return (jint)0;
 }
 
 /*
@@ -5054,6 +5057,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresenceNoteImpl_setContent(JNIEnv
 	const char *ccontent = content ? env->GetStringUTFChars(content, NULL) : NULL;
 	linphone_presence_note_set_content(note, ccontent);
 	if (ccontent) env->ReleaseStringUTFChars(content, ccontent);
+	return (jint)0;
 }
 
 /*
@@ -5077,6 +5081,7 @@ JNIEXPORT jint JNICALL Java_org_linphone_core_PresenceNoteImpl_setLang(JNIEnv *e
 	const char *clang = lang ? env->GetStringUTFChars(lang, NULL) : NULL;
 	linphone_presence_note_set_lang(note, clang);
 	if (clang) env->ReleaseStringUTFChars(lang, clang);
+	return (jint)0;
 }
 
 /*
@@ -5235,7 +5240,6 @@ extern "C" jint Java_org_linphone_core_LinphonePlayerImpl_open(JNIEnv *env, jobj
 }
 
 extern "C" jint Java_org_linphone_core_LinphonePlayerImpl_start(JNIEnv *env, jobject jobj, jlong ptr) {
-	LinphonePlayerData *player_data = (LinphonePlayerData *)((LinphonePlayer *)ptr)->user_data;
 	return (jint)linphone_player_start((LinphonePlayer *)ptr);
 }
 
