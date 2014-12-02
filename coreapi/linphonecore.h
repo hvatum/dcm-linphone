@@ -127,26 +127,6 @@ typedef struct SalAddress LinphoneAddress;
 typedef struct belle_sip_dict LinphoneDictionary;
 
 /**
- * The LinphoneContent struct holds data that can be embedded in a signaling message.
- * @ingroup misc
-**/
-struct _LinphoneContent{
-	char *type; /**<mime type for the data, for example "application"*/
-	char *subtype; /**<mime subtype for the data, for example "html"*/
-	void *data; /**<the actual data buffer, usually a string. Null when provided by callbacks #LinphoneCoreFileTransferSendCb or #LinphoneCoreFileTransferRecvCb*/
-	size_t size; /**<the size of the data buffer, excluding null character despite null character is always set for convenience.
-				When provided by callback #LinphoneCoreFileTransferSendCb or #LinphoneCoreFileTransferRecvCb, it states the total number of bytes of the transfered file*/
-	char *encoding; /**<The encoding of the data buffer, for example "gzip"*/
-	char *name; /**< used by RCS File transfer messages to store the original filename of the file to be downloaded from server */
-};
-
-/**
- * Alias to the LinphoneContent struct.
- * @ingroup misc
-**/
-typedef struct _LinphoneContent LinphoneContent;
-
-/**
  * The LinphoneCall object represents a call issued or received by the LinphoneCore
  * @ingroup call_control
 **/
@@ -386,15 +366,17 @@ LINPHONE_PUBLIC const char* linphone_privacy_to_string(LinphonePrivacy privacy);
 
 
 #ifdef IN_LINPHONE
-#include "linphonefriend.h"
-#include "event.h"
 #include "call_log.h"
 #include "call_params.h"
+#include "content.h"
+#include "event.h"
+#include "linphonefriend.h"
 #else
-#include "linphone/linphonefriend.h"
-#include "linphone/event.h"
 #include "linphone/call_log.h"
 #include "linphone/call_params.h"
+#include "linphone/content.h"
+#include "linphone/event.h"
+#include "linphone/linphonefriend.h"
 #endif
 
 LINPHONE_PUBLIC	LinphoneAddress * linphone_address_new(const char *addr);
@@ -418,6 +400,9 @@ LINPHONE_PUBLIC void linphone_address_set_transport(LinphoneAddress *uri,Linphon
 LINPHONE_PUBLIC	char *linphone_address_as_string(const LinphoneAddress *u);
 LINPHONE_PUBLIC	char *linphone_address_as_string_uri_only(const LinphoneAddress *u);
 LINPHONE_PUBLIC	bool_t linphone_address_weak_equal(const LinphoneAddress *a1, const LinphoneAddress *a2);
+LINPHONE_PUBLIC void linphone_address_set_password(LinphoneAddress *addr, const char *passwd);
+LINPHONE_PUBLIC const char *linphone_address_get_password(const LinphoneAddress *addr);
+LINPHONE_PUBLIC void linphone_address_set_header(LinphoneAddress *addr, const char *header_name, const char *header_value);
 LINPHONE_PUBLIC	void linphone_address_destroy(LinphoneAddress *u);
 
 /**
@@ -494,6 +479,8 @@ enum _LinphoneIceState{
  * @ingroup initializing
 **/
 typedef enum _LinphoneIceState LinphoneIceState;
+
+LINPHONE_PUBLIC const char *linphone_ice_state_to_string(LinphoneIceState state);
 
 /**
  * Enum describing uPnP states.
@@ -603,10 +590,10 @@ void linphone_player_destroy(LinphonePlayer *obj);
  * @param lc A LinphoneCore object
  * @param snd_card Playback sound card. If NULL, the sound card set in LinphoneCore will be used
  * @param video_out Video display. If NULL, the video display set in LinphoneCore will be used
- * @param window_id Pointer on the drawing window
+ * @param window_id Id of the drawing window. Depend of video out
  * @return A pointer on the new instance. NULL if faild.
  */
-LINPHONE_PUBLIC LinphonePlayer *linphone_core_create_local_player(LinphoneCore *lc, MSSndCard *snd_card, const char *video_out, void *window_id);
+LINPHONE_PUBLIC LinphonePlayer *linphone_core_create_local_player(LinphoneCore *lc, MSSndCard *snd_card, const char *video_out, unsigned long window_id);
 
 /**
  * @brief Check whether Matroksa format is supported by the player
@@ -731,6 +718,37 @@ LINPHONE_PUBLIC	void linphone_call_start_recording(LinphoneCall *call);
 LINPHONE_PUBLIC	void linphone_call_stop_recording(LinphoneCall *call);
 LINPHONE_PUBLIC LinphonePlayer * linphone_call_get_player(LinphoneCall *call);
 LINPHONE_PUBLIC bool_t linphone_call_media_in_progress(LinphoneCall *call);
+/**
+ * Send the specified dtmf.
+ *
+ * The dtmf is automatically played to the user.
+ * @param call The LinphoneCall object
+ * @param dtmf The dtmf name specified as a char, such as '0', '#' etc...
+ * @returns 0 if successful, -1 on error.
+**/
+LINPHONE_PUBLIC	int linphone_call_send_dtmf(LinphoneCall *lc,char dtmf);
+
+/**
+ * Send a list of dtmf.
+ *
+ * The dtmfs are automatically sent to remote, separated by some needed customizable delay.
+ * Sending is canceled if the call state changes to something not LinphoneCallStreamsRunning.
+ * @param call The LinphoneCall object
+ * @param dtmfs A dtmf sequence such as '123#123123'
+ * @returns -2 if there is already a DTMF sequence, -1 if call is not ready, 0 otherwise.
+**/
+LINPHONE_PUBLIC	int linphone_call_send_dtmfs(LinphoneCall *call,char *dtmfs);
+
+/**
+ * Stop current DTMF sequence sending.
+ *
+ * Please note that some DTMF could be already sent,
+ * depending on when this function call is delayed from #linphone_call_send_dtmfs. This
+ * function will be automatically called if call state change to anything but LinphoneCallStreamsRunning.
+ *
+ * @param call The LinphoneCall object
+**/
+LINPHONE_PUBLIC	void linphone_call_cancel_dtmfs(LinphoneCall *call);
 
 /**
  * Return TRUE if this call is currently part of a conference
@@ -1283,7 +1301,12 @@ struct _LinphoneChatRoom;
  */
 
 /**
- * A chat room message to old content to be sent.
+ * An object to handle the callbacks for the handling a LinphoneChatMessage objects.
+ */
+typedef struct _LinphoneChatMessageCbs LinphoneChatMessageCbs;
+
+/**
+ * A chat room message to hold content to be sent.
  * <br> Can be created by linphone_chat_room_create_message().
  */
 typedef struct _LinphoneChatMessage LinphoneChatMessage;
@@ -1313,6 +1336,46 @@ typedef enum _LinphoneChatMessageState {
  *@param ud application user data
  */
 typedef void (*LinphoneChatMessageStateChangedCb)(LinphoneChatMessage* msg,LinphoneChatMessageState state,void* ud);
+
+/**
+ * Call back used to notify message delivery status
+ * @param msg #LinphoneChatMessage object
+ * @param status LinphoneChatMessageState
+ */
+typedef void (*LinphoneChatMessageMsgStateChangedCb)(LinphoneChatMessage* msg, LinphoneChatMessageState state);
+
+/**
+ * File transfer receive callback prototype. This function is called by the core upon an incoming File transfer is started. This function may be call several time for the same file in case of large file.
+ *
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent incoming content information
+ * @param buff pointer to the received data
+ * @param size number of bytes to be read from buff. 0 means end of file.
+ *
+ */
+typedef void (*LinphoneChatMessageFileTransferRecvCb)(LinphoneChatMessage *message, const LinphoneContent* content, const char* buff, size_t size);
+
+/**
+ * File transfer send callback prototype. This function is called by the core upon an outgoing File transfer is started. This function is called until size is set to 0.
+ * <br> a #LinphoneContent with a size equal zero
+ *
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent outgoing content
+ * @param buff pointer to the buffer where data chunk shall be written by the app
+ * @param size as input value, it represents the number of bytes expected by the framework. As output value, it means the number of bytes wrote by the application in the buffer. 0 means end of file.
+ *
+ */
+typedef void (*LinphoneChatMessageFileTransferSendCb)(LinphoneChatMessage *message,  const LinphoneContent* content, char* buff, size_t* size);
+
+/**
+ * File transfer progress indication callback prototype.
+ *
+ * @param message #LinphoneChatMessage message from which the body is received.
+ * @param content #LinphoneContent incoming content information
+ * @param offset The number of bytes sent/received since the beginning of the transfer.
+ * @param total The total number of bytes to be sent/received.
+ */
+typedef void (*LinphoneChatMessageFileTransferProgressIndicationCb)(LinphoneChatMessage *message, const LinphoneContent* content, size_t offset, size_t total);
 
 LINPHONE_PUBLIC void linphone_core_set_chat_database_path(LinphoneCore *lc, const char *path);
 LINPHONE_PUBLIC	LinphoneChatRoom * linphone_core_create_chat_room(LinphoneCore *lc, const char *to);
@@ -1364,6 +1427,7 @@ LINPHONE_PUBLIC	LinphoneChatMessage* linphone_chat_room_create_file_transfer_mes
 LINPHONE_PUBLIC	const LinphoneAddress* linphone_chat_room_get_peer_address(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC	void linphone_chat_room_send_message(LinphoneChatRoom *cr, const char *msg);
 LINPHONE_PUBLIC	void linphone_chat_room_send_message2(LinphoneChatRoom *cr, LinphoneChatMessage* msg,LinphoneChatMessageStateChangedCb status_cb,void* ud);
+LINPHONE_PUBLIC void linphone_chat_room_send_chat_message(LinphoneChatRoom *cr, LinphoneChatMessage *msg);
 LINPHONE_PUBLIC void linphone_chat_room_update_url(LinphoneChatRoom *cr, LinphoneChatMessage *msg);
 LINPHONE_PUBLIC MSList *linphone_chat_room_get_history(LinphoneChatRoom *cr,int nb_message);
 LINPHONE_PUBLIC void linphone_chat_room_mark_as_read(LinphoneChatRoom *cr);
@@ -1425,7 +1489,8 @@ LINPHONE_PUBLIC	const char* linphone_chat_message_get_external_body_url(const Li
 LINPHONE_PUBLIC	void linphone_chat_message_set_external_body_url(LinphoneChatMessage* message,const char* url);
 LINPHONE_PUBLIC	const LinphoneContent* linphone_chat_message_get_file_transfer_information(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC void linphone_chat_message_start_file_download(LinphoneChatMessage* message, LinphoneChatMessageStateChangedCb status_cb, void* ud);
-LINPHONE_PUBLIC void linphone_chat_room_cancel_file_transfer(LinphoneChatMessage* msg);
+LINPHONE_PUBLIC void linphone_chat_message_download_file(LinphoneChatMessage *message);
+LINPHONE_PUBLIC void linphone_chat_message_cancel_file_transfer(LinphoneChatMessage* msg);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_appdata(const LinphoneChatMessage* message);
 LINPHONE_PUBLIC	void linphone_chat_message_set_appdata(LinphoneChatMessage* message, const char* data);
 LINPHONE_PUBLIC	const char* linphone_chat_message_get_text(const LinphoneChatMessage* message);
@@ -1444,6 +1509,21 @@ LINPHONE_PUBLIC LinphoneReason linphone_chat_message_get_reason(LinphoneChatMess
 LINPHONE_PUBLIC const LinphoneErrorInfo *linphone_chat_message_get_error_info(const LinphoneChatMessage *msg);
 LINPHONE_PUBLIC void linphone_chat_message_set_file_transfer_filepath(LinphoneChatMessage *msg, const char *filepath);
 LINPHONE_PUBLIC const char * linphone_chat_message_get_file_transfer_filepath(LinphoneChatMessage *msg);
+LINPHONE_PUBLIC LinphoneChatMessageCbs * linphone_chat_message_get_callbacks(const LinphoneChatMessage *msg);
+
+LINPHONE_PUBLIC LinphoneChatMessageCbs * linphone_chat_message_cbs_ref(LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_unref(LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void *linphone_chat_message_cbs_get_user_data(const LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_set_user_data(LinphoneChatMessageCbs *cbs, void *ud);
+LINPHONE_PUBLIC LinphoneChatMessageMsgStateChangedCb linphone_chat_message_cbs_get_msg_state_changed(const LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_set_msg_state_changed(LinphoneChatMessageCbs *cbs, LinphoneChatMessageMsgStateChangedCb cb);
+LINPHONE_PUBLIC LinphoneChatMessageFileTransferRecvCb linphone_chat_message_cbs_get_file_transfer_recv(const LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_set_file_transfer_recv(LinphoneChatMessageCbs *cbs, LinphoneChatMessageFileTransferRecvCb cb);
+LINPHONE_PUBLIC LinphoneChatMessageFileTransferSendCb linphone_chat_message_cbs_get_file_transfer_send(const LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_set_file_transfer_send(LinphoneChatMessageCbs *cbs, LinphoneChatMessageFileTransferSendCb cb);
+LINPHONE_PUBLIC LinphoneChatMessageFileTransferProgressIndicationCb linphone_chat_message_cbs_get_file_transfer_progress_indication(const LinphoneChatMessageCbs *cbs);
+LINPHONE_PUBLIC void linphone_chat_message_cbs_set_file_transfer_progress_indication(LinphoneChatMessageCbs *cbs, LinphoneChatMessageFileTransferProgressIndicationCb cb);
+
 /**
  * @}
  */
@@ -1483,7 +1563,7 @@ typedef enum _LinphoneCoreLogCollectionUploadState {
  * @param gstate the global state
  * @param message informational message.
  */
-typedef void (*LinphoneCoreGlobalStateChangedCb )(LinphoneCore *lc, LinphoneGlobalState gstate, const char *message);
+typedef void (*LinphoneCoreGlobalStateChangedCb)(LinphoneCore *lc, LinphoneGlobalState gstate, const char *message);
 /**
  * Call state notification callback.
  * @param lc the LinphoneCore
@@ -1728,12 +1808,13 @@ typedef struct _LinphoneCoreVTable{
 	DisplayUrlCb display_url; /**< @deprecated */
 	ShowInterfaceCb show; /**< @deprecated Notifies the application that it should show up*/
 	LinphoneCoreTextMessageReceivedCb text_received; /**< @deprecated, use #message_received instead <br> A text message has been received */
-	LinphoneCoreFileTransferRecvCb file_transfer_recv; /**< Callback to store file received attached to a #LinphoneChatMessage */
-	LinphoneCoreFileTransferSendCb file_transfer_send; /**< Callback to collect file chunk to be sent for a #LinphoneChatMessage */
-	LinphoneCoreFileTransferProgressIndicationCb file_transfer_progress_indication; /**< Callback to indicate file transfer progress */
+	LinphoneCoreFileTransferRecvCb file_transfer_recv; /**< @deprecated Callback to store file received attached to a #LinphoneChatMessage */
+	LinphoneCoreFileTransferSendCb file_transfer_send; /**< @deprecated Callback to collect file chunk to be sent for a #LinphoneChatMessage */
+	LinphoneCoreFileTransferProgressIndicationCb file_transfer_progress_indication; /**< @deprecated Callback to indicate file transfer progress */
 	LinphoneCoreNetworkReachableCb network_reachable; /**< Callback to report IP network status (I.E up/down )*/
 	LinphoneCoreLogCollectionUploadStateChangedCb log_collection_upload_state_changed; /**< Callback to upload collected logs */
 	LinphoneCoreLogCollectionUploadProgressIndicationCb log_collection_upload_progress_indication; /**< Callback to indicate log collection upload progress */
+	void *user_data;
 } LinphoneCoreVTable;
 
 /**
@@ -1741,6 +1822,28 @@ typedef struct _LinphoneCoreVTable{
  * @returns newly allocated vtable
  */
 LINPHONE_PUBLIC LinphoneCoreVTable *linphone_core_v_table_new();
+
+/**
+ * Sets a user data pointer in the vtable.
+ * @param table the vtable
+ * @param data the user data to attach
+ */
+LINPHONE_PUBLIC void linphone_core_v_table_set_user_data(LinphoneCoreVTable *table, void *data);
+
+/**
+ * Gets a user data pointer in the vtable.
+ * @param table the vtable
+ * @returns the data attached to the vtable
+ */
+LINPHONE_PUBLIC void* linphone_core_v_table_get_user_data(LinphoneCoreVTable *table);
+
+/**
+ * Gets the current VTable.
+ * This is meant only to be called from a callback to be able to get the user_data associated with the vtable that called the callback.
+ * @param lc the linphonecore
+ * @returns the vtable that called the last callback 
+ */
+LINPHONE_PUBLIC LinphoneCoreVTable *linphone_core_get_current_vtable(LinphoneCore *lc);
 
 /**
  * Destroy a vtable.
@@ -2049,6 +2152,16 @@ LINPHONE_PUBLIC LinphoneCallParams *linphone_core_create_call_params(LinphoneCor
 
 LINPHONE_PUBLIC	LinphoneCall *linphone_core_get_call_by_remote_address(LinphoneCore *lc, const char *remote_address);
 
+/**
+ * Send the specified dtmf.
+ *
+ * @ingroup media_parameters
+ * @deprecated Use #linphone_call_send_dtmf instead.
+ * This function only works during calls. The dtmf is automatically played to the user.
+ * @param lc The LinphoneCore object
+ * @param dtmf The dtmf name specified as a char, such as '0', '#' etc...
+ *
+**/
 LINPHONE_PUBLIC	void linphone_core_send_dtmf(LinphoneCore *lc,char dtmf);
 
 LINPHONE_PUBLIC	int linphone_core_set_primary_contact(LinphoneCore *lc, const char *contact);
@@ -2742,7 +2855,7 @@ LINPHONE_PUBLIC void linphone_core_set_native_preview_window_id(LinphoneCore *lc
 **/
 LINPHONE_PUBLIC void linphone_core_use_preview_window(LinphoneCore *lc, bool_t yesno);
 
-int linphone_core_get_device_rotation(LinphoneCore *lc );
+LINPHONE_PUBLIC int linphone_core_get_device_rotation(LinphoneCore *lc );
 LINPHONE_PUBLIC void linphone_core_set_device_rotation(LinphoneCore *lc, int rotation);
 
 /**

@@ -12,18 +12,18 @@
 #define __TUNNEL_CLIENT_MANAGER_H__
 #include <list>
 #include <string>
-#include "tunnel/client.hh"
+#include <tunnel/client.hh>
+#include <tunnel/udp_mirror.hh>
 #include "linphonecore.h"
+#include "linphone_tunnel.h"
 
 #ifndef USE_BELLESIP
 extern "C" {
-	#include "eXosip2/eXosip_transport_hook.h"
+	#include <eXosip2/eXosip_transport_hook.h>
 }
 #endif
 
 namespace belledonnecomm {
-class TunnelClient;
-class UdpMirrorClient;
 /**
  * @addtogroup tunnel_client
  * @{
@@ -39,7 +39,7 @@ class UdpMirrorClient;
 	 * It takes in charge automatically the SIP registration procedure when connecting or disconnecting to a tunnel server.
 	 * No other action on LinphoneCore is required to enable full operation in tunnel mode.
 	**/
-	class TunnelManager : public TunnelClientController{
+	class TunnelManager {
 
 	public:
 		/**
@@ -64,18 +64,6 @@ class UdpMirrorClient;
 		**/
 		void cleanServers();
 		/**
-		 * Register a state callback to be notified whenever the tunnel client is connected or disconnected to the tunnel server.
-		 * @param cb application callback function to use for notifying of connection/disconnection events.
-		 * @param userdata An opaque pointer passed to the callback, used optionally by the application to retrieve a context.
-		**/
-		void setCallback(StateCallback cb, void *userdata);
-		/**
-		 * Start connecting to a tunnel server.
-		 * At this step, nothing is tunneled yet. The enable() method must be used to state whether SIP and RTP traffic
-		 * need to be tunneled or not.
-		**/
-		void start();
-		/**
 		 * Forces reconnection to the tunnel server.
 		 * This method is useful when the device switches from wifi to Edge/3G or vice versa. In most cases the tunnel client socket
 		 * won't be notified promptly that its connection is now zombie, so it is recommended to call this method that will cause
@@ -83,22 +71,15 @@ class UdpMirrorClient;
 		**/
 		void reconnect();
 		/**
-		 * Sets whether tunneling of SIP and RTP is required.
-		 * @param isEnabled If true enter in tunneled mode, if false exits from tunneled mode.
-		 * The TunnelManager takes care of refreshing SIP registration when switching on or off the tunneled mode.
-		 *
-		**/
-		void enable(bool isEnabled);
-		/**
-		 * In auto detect mode, the tunnel manager try to establish a real time rtp cummunication with the tunnel server on  specified port.
-		 *<br/>In case of success, the tunnel is automatically turned off. Otherwise, if no udp commmunication is feasible, tunnel mode is turned on.
-		 *<br/> Call this method each time to run the auto detection algorithm
+		 * @brief setMode
+		 * @param mode
 		 */
-		void autoDetect();
+		void setMode(LinphoneTunnelMode mode);
 		/**
-		 * Returns a boolean indicating whether tunneled operation is enabled.
-		**/
-		bool isEnabled() const;
+		 * @brief Return the tunnel mode
+		 * @return #LinphoneTunnelMode
+		 */
+		LinphoneTunnelMode getMode() const;
 		/**
 		 * Enables debug logs of the Tunnel subsystem.
 		**/
@@ -115,6 +96,7 @@ class UdpMirrorClient;
 		 * @param passwd The password.
 		**/
 		void setHttpProxyAuthInfo(const char* username,const char* passwd);
+		void setHttpProxy(const char *host,int port, const char *username, const char *passwd);
 		/**
 		 * Indicate to the tunnel manager whether SIP packets must pass
 		 * through the tunnel. That featurte is automatically enabled at
@@ -129,31 +111,46 @@ class UdpMirrorClient;
 		 */
 		bool tunnelizeSipPacketsEnabled() const;
 		/**
-		 * @brief Destructor
-		 */
-		~TunnelManager();
-		/**
 		 * @brief Constructor
 		 * @param lc The LinphoneCore instance of which the TunnelManager will be associated to.
 		 */
 		TunnelManager(LinphoneCore* lc);
 		/**
-		 * Destroy the given RtpTransport.
+		 * @brief Destructor
 		 */
-		void closeRtpTransport(RtpTransport *t, TunnelSocket *s);
-
+		~TunnelManager();
 		/**
-		 * Create an RtpTransport.
+		 * @brief Create an RtpTransport
+		 * @param port
+		 * @return
 		 */
 		RtpTransport *createRtpTransport(int port);
-
 		/**
-		 * Get associated Linphone Core.
+		 * @brief Destroy the given RtpTransport
+		 * @param t
+		 * @param s
+		 */
+		void closeRtpTransport(RtpTransport *t, TunnelSocket *s);
+		/**
+		 * @brief Get associated Linphone Core
+		 * @return pointer on the associated LinphoneCore
 		 */
 		LinphoneCore *getLinphoneCore() const;
-		virtual void setHttpProxy(const char *host,int port, const char *username, const char *passwd);
-		virtual bool isReady() const;
+		/**
+		 * @brief Check wehter the tunnel is connected
+		 * @return True whether the tunnel is connected
+		 */
+		bool isConnected() const;
+
+		bool isActivated() const;
 	private:
+		enum State {
+			disabled,
+			connecting,
+			ready,
+			autodetecting
+		};
+
 		enum EventType{
 			UdpMirrorClientEvent,
 			TunnelEvent,
@@ -166,8 +163,6 @@ class UdpMirrorClient;
 			}mData;
 		};
 		typedef std::list<UdpMirrorClient> UdpMirrorClientList;
-		virtual bool isStarted() const;
-		void onIterate();
 		static int customSendto(struct _RtpTransport *t, mblk_t *msg , int flags, const struct sockaddr *to, socklen_t tolen);
 		static int customRecvfrom(struct _RtpTransport *t, mblk_t *msg, int flags, struct sockaddr *from, socklen_t *fromlen);
 		static int eXosipSendto(int fd,const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen,void* userdata);
@@ -176,38 +171,35 @@ class UdpMirrorClient;
 		static void tunnelCallback(bool connected, TunnelManager *zis);
 		static void sOnIterate(TunnelManager *zis);
 		static void sUdpMirrorClientCallback(bool result, void* data);
-		void registration();
-		void waitUnRegistration();
+		static void networkReachableCb(LinphoneCore *lc, bool_t reachable);
+
+	private:
+		void onIterate();
+		void doRegistration();
+		void doUnregistration();
+		void startClient();
+		bool startAutoDetection();
 		void processTunnelEvent(const Event &ev);
 		void processUdpMirrorEvent(const Event &ev);
 		void postEvent(const Event &ev);
-		void stopClient();
 
 	private:
 		LinphoneCore* mCore;
-#ifndef USE_BELLESIP
-		TunnelSocket *mSipSocket;
-		eXosip_transport_hooks_t mExosipTransport;
-#endif
-		StateCallback mCallback;
-		void * mCallbackData;
-		bool mEnabled;
-		std::queue<Event> mEvq;
-		std::list <ServerAddr> mServerAddrs;
-		UdpMirrorClientList mUdpMirrorClients;
-		UdpMirrorClientList::iterator mCurrentUdpMirrorClient;
+		LinphoneTunnelMode mMode;
+		State mState;
+		bool mTunnelizeSipPackets;
 		TunnelClient* mTunnelClient;
-		Mutex mMutex;
-		static Mutex sMutex;
-		bool mAutoDetectStarted;
-		bool mReady;
-		LinphoneRtpTransportFactories mTransportFactories;
 		std::string mHttpUserName;
 		std::string mHttpPasswd;
 		std::string mHttpProxyHost;
 		int mHttpProxyPort;
-		bool mPreviousRegistrationEnabled;
-		bool mTunnelizeSipPackets;
+		LinphoneCoreVTable *mVTable;
+		std::list <ServerAddr> mServerAddrs;
+		UdpMirrorClientList mUdpMirrorClients;
+		UdpMirrorClientList::iterator mCurrentUdpMirrorClient;
+		LinphoneRtpTransportFactories mTransportFactories;
+		Mutex mMutex;
+		std::queue<Event> mEvq;
 	};
 
 /**

@@ -224,7 +224,8 @@ static bool_t already_a_call_pending(LinphoneCore *lc){
 			|| call->state==LinphoneCallOutgoingInit
 			|| call->state==LinphoneCallOutgoingProgress
 			|| call->state==LinphoneCallOutgoingEarlyMedia
-			|| call->state==LinphoneCallOutgoingRinging){
+			|| call->state==LinphoneCallOutgoingRinging
+			|| call->state==LinphoneCallIdle){ /*case of an incoming call for which ICE candidate gathering is pending.*/
 			return TRUE;
 		}
 	}
@@ -239,6 +240,7 @@ static void call_received(SalOp *h){
 	LinphoneAddress  *to_addr=NULL;
 	/*this mode is deprcated because probably useless*/
 	bool_t prevent_colliding_calls=lp_config_get_int(lc->config,"sip","prevent_colliding_calls",FALSE);
+	SalMediaDescription *md;
 
 	/* first check if we can answer successfully to this invite */
 	if (linphone_presence_model_get_basic_status(lc->presence_model) == LinphonePresenceBasicStatusClosed) {
@@ -303,6 +305,17 @@ static void call_received(SalOp *h){
 	}
 
 	call=linphone_call_new_incoming(lc,from_addr,to_addr,h);
+
+	linphone_call_make_local_media_description(lc,call);
+	sal_call_set_local_media_description(call->op,call->localdesc);
+	md=sal_call_get_final_media_description(call->op);
+	if (md){
+		if (sal_media_description_empty(md) || linphone_core_incompatible_security(lc,md)){
+			sal_call_decline(call->op,SalReasonNotAcceptable,NULL);
+			linphone_call_unref(call);
+			return;
+		}
+	}
 
 	/* the call is acceptable so we can now add it to our list */
 	linphone_core_add_call(lc,call);
@@ -372,6 +385,10 @@ static void call_ringing(SalOp *h){
 	md=sal_call_get_final_media_description(h);
 	if (md==NULL){
 		linphone_core_stop_dtmf_stream(lc);
+		if (call->state==LinphoneCallOutgoingEarlyMedia){
+			/*already doing early media */
+			return;
+		}
 		if (lc->ringstream!=NULL) return;/*already ringing !*/
 		if (lc->sound_conf.play_sndcard!=NULL){
 			MSSndCard *ringcard=lc->sound_conf.lsd_card ? lc->sound_conf.lsd_card : lc->sound_conf.play_sndcard;
@@ -422,7 +439,7 @@ static void call_accepted(SalOp *op){
 
 	/* Handle remote ICE attributes if any. */
 	if (call->ice_session != NULL) {
-		linphone_core_update_ice_from_remote_media_description(call, sal_call_get_remote_media_description(op));
+		linphone_call_update_ice_from_remote_media_description(call, sal_call_get_remote_media_description(op));
 	}
 #ifdef BUILD_UPNP
 	if (call->upnp_session != NULL) {
@@ -1153,14 +1170,18 @@ static void text_delivery_update(SalOp *op, SalTextDeliveryStatus status){
 	}
 
 	chat_msg->state=chatStatusSal2Linphone(status);
-	linphone_chat_message_store_state(chat_msg);
-	if (chat_msg && chat_msg->cb) {
+	linphone_chat_message_update_state(chat_msg);
+
+	if (chat_msg && (chat_msg->cb || (chat_msg->callbacks && linphone_chat_message_cbs_get_msg_state_changed(chat_msg->callbacks)))) {
 		ms_message("Notifying text delivery with status %i",chat_msg->state);
-		chat_msg->cb(chat_msg
-			,chat_msg->state
-			,chat_msg->cb_ud);
+		if (chat_msg->callbacks && linphone_chat_message_cbs_get_msg_state_changed(chat_msg->callbacks)) {
+			linphone_chat_message_cbs_get_msg_state_changed(chat_msg->callbacks)(chat_msg, chat_msg->state);
+		} else {
+			/* Legacy */
+			chat_msg->cb(chat_msg,chat_msg->state,chat_msg->cb_ud);
+		}
 	}
-	if (status != SalTextDeliveryInProgress) { /*don't release op if progress*/
+	if (status != SalTextDeliveryInProgress) { /*only release op if not in progress*/
 		linphone_chat_message_destroy(chat_msg);
 	}
 }
@@ -1191,14 +1212,13 @@ static void subscribe_response(SalOp *op, SalSubscribeStatus status){
 static void notify(SalOp *op, SalSubscribeStatus st, const char *eventname, const SalBody *body){
 	LinphoneEvent *lev=(LinphoneEvent*)sal_op_get_user_pointer(op);
 	LinphoneCore *lc=(LinphoneCore *)sal_get_user_pointer(sal_op_get_sal(op));
-	LinphoneContent content={0};
 
 	if (lev==NULL) {
 		/*out of subscribe notify */
 		lev=linphone_event_new_with_out_of_dialog_op(lc,op,LinphoneSubscriptionOutgoing,eventname);
 	}
 	{
-		const LinphoneContent *ct=linphone_content_from_sal_body(&content,body);
+		LinphoneContent *ct=linphone_content_from_sal_body(body);
 		if (ct) linphone_core_notify_notify_received(lc,lev,eventname,ct);
 	}
 	if (st!=SalSubscribeNone){

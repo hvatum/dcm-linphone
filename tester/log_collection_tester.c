@@ -1,19 +1,19 @@
 /*
 	belle-sip - SIP (RFC3261) library.
-    Copyright (C) 2010  Belledonne Communications SARL
+	Copyright (C) 2010  Belledonne Communications SARL
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 2 of the License, or
-    (at your option) any later version.
+	This program is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 2 of the License, or
+	(at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <stdio.h>
@@ -26,6 +26,63 @@
 #include "linphonecore.h"
 #include "private.h"
 #include "liblinphone_tester.h"
+
+
+/*getline is not available on android...*/
+#ifdef ANDROID
+/* This code is public domain -- Will Hartung 4/9/09 */
+size_t getline(char **lineptr, size_t *n, FILE *stream) {
+	char *bufptr = NULL;
+	char *p = bufptr;
+	size_t size;
+	int c;
+
+	if (lineptr == NULL) {
+		return -1;
+	}
+	if (stream == NULL) {
+		return -1;
+	}
+	if (n == NULL) {
+		return -1;
+	}
+	bufptr = *lineptr;
+	size = *n;
+
+	c = fgetc(stream);
+	if (c == EOF) {
+		return -1;
+	}
+	if (bufptr == NULL) {
+		bufptr = malloc(128);
+		if (bufptr == NULL) {
+			return -1;
+		}
+		size = 128;
+	}
+	p = bufptr;
+	while(c != EOF) {
+		if ((p - bufptr) > (size - 1)) {
+			size = size + 128;
+			bufptr = realloc(bufptr, size);
+			if (bufptr == NULL) {
+				return -1;
+			}
+		}
+		*p++ = c;
+		if (c == '\n') {
+			break;
+		}
+		c = fgetc(stream);
+	}
+
+	*p++ = '\0';
+	*lineptr = bufptr;
+	*n = size;
+
+	return p - bufptr - 1;
+}
+#endif
 
 LinphoneCoreManager* setup(bool_t enable_logs)  {
 	LinphoneCoreManager *marie;

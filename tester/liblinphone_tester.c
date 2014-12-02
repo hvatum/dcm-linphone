@@ -25,6 +25,8 @@
 #include "CUnit/CUCurses.h"
 #endif
 
+extern int liblinphone_tester_use_log_file;
+
 #ifdef ANDROID
 
 #include <android/log.h>
@@ -115,23 +117,7 @@ static void liblinphone_tester_qnx_log_handler(OrtpLogLevel lev, const char *fmt
 }
 #endif /* __QNX__ */
 
-int liblinphone_tester_ipv6_available(void){
-	struct addrinfo *ai=belle_sip_ip_address_to_addrinfo(AF_INET6,"2a01:e00::2",53);
-	if (ai){
-		struct sockaddr_storage ss;
-		struct addrinfo src;
-		socklen_t slen=sizeof(ss);
-		char localip[128];
-		int port=0;
-		belle_sip_get_src_addr_for(ai->ai_addr,ai->ai_addrlen,(struct sockaddr*) &ss,&slen,4444);
-		src.ai_addr=(struct sockaddr*) &ss;
-		src.ai_addrlen=slen;
-		belle_sip_addrinfo_to_ip(&src,localip, sizeof(localip),&port);
-		freeaddrinfo(ai);
-		return strcmp(localip,"::1")!=0;
-	}
-	return FALSE;
-}
+
 
 void helper(const char *name) {
 	liblinphone_tester_fprintf(stderr,"%s --help\n"
@@ -145,6 +131,7 @@ void helper(const char *name) {
 			"\t\t\t--suite <suite name>\n"
 			"\t\t\t--test <test name>\n"
 			"\t\t\t--dns-hosts </etc/hosts -like file to used to override DNS names (default: tester_hosts)>\n"
+			"\t\t\t--log-file <output log file path>\n"
 #if HAVE_CU_CURSES
 			"\t\t\t--curses\n"
 #endif
@@ -166,7 +153,7 @@ int main (int argc, char *argv[])
 	int ret;
 	const char *suite_name=NULL;
 	const char *test_name=NULL;
-
+	FILE* log_file=NULL;
 #if defined(ANDROID)
 	linphone_core_set_log_handler(linphone_android_ortp_log_handler);
 #elif defined(__QNX__)
@@ -211,7 +198,18 @@ int main (int argc, char *argv[])
 			suite_name = argv[i];
 			liblinphone_tester_list_suite_tests(suite_name);
 			return 0;
-		} else {
+		} else if (strcmp(argv[i],"--log-file")==0){
+			CHECK_ARG("--log-file", ++i, argc);
+			log_file=fopen(argv[i],"w");
+			if (!log_file) {
+				ms_fatal("Cannot open file [%s] for writting logs because [%s]",argv[i],strerror(errno));
+			} else {
+				liblinphone_tester_use_log_file=1;
+				liblinphone_tester_fprintf(stdout,"Redirecting traces to file [%s]",argv[i]);
+				linphone_core_set_log_file(log_file);
+			}
+
+		}else {
 			liblinphone_tester_fprintf(stderr, "Unknown option \"%s\"\n", argv[i]); \
 			helper(argv[0]);
 			return -1;

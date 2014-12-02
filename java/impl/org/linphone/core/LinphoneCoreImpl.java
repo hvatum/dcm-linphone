@@ -268,6 +268,7 @@ class LinphoneCoreImpl implements LinphoneCore {
 		return logs;
 	}
 	public synchronized void destroy() {
+		setAndroidPowerManager(null);
 		delete(nativePtr);
 		nativePtr=0;
 	}
@@ -1289,5 +1290,17 @@ class LinphoneCoreImpl implements LinphoneCore {
 		} else {
 			return null;
 		}
+	}
+	
+	private native void addListener(long nativePtr, LinphoneCoreListener listener);
+	@Override
+	public void addListener(LinphoneCoreListener listener) {
+		addListener(nativePtr, listener);
+	}
+	
+	private native void removeListener(long nativePtr, LinphoneCoreListener listener);
+	@Override
+	public void removeListener(LinphoneCoreListener listener) {
+		removeListener(nativePtr, listener);
 	}
 }
