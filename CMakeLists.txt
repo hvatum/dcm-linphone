@@ -86,6 +86,12 @@ if(ENABLE_TUNNEL)
 		set(ENABLE_TUNNEL OFF CACHE BOOL "Enable tunnel support." FORCE)
 	endif()
 endif()
+if(ENABLE_MSG_STORAGE)
+	find_package(Sqlite3)
+	if(NOT SQLITE3_FOUND)
+		message(FATAL_ERROR "Could not find the sqlite3 library!")
+	endif()
+endif()
 if(ENABLE_NOTIFY)
 	find_package(Notify)
 	if(NOTIFY_FOUND)
@@ -95,6 +101,7 @@ if(ENABLE_NOTIFY)
 		set(ENABLE_NOTIFY OFF CACHE BOOL "Enable libnotify support." FORCE)
 	endif()
 endif()
+find_package(Gettext)
 
 
 include_directories(
@@ -106,6 +113,10 @@ include_directories(
 	${MS2_INCLUDE_DIRS}
 	${XML2_INCLUDE_DIRS}
 )
+if(SQLITE3_FOUND)
+	include_directories(${SQLITE3_INCLUDE_DIRS})
+	add_definitions("-DMSG_STORAGE_ENABLED")
+endif()
 if(ENABLE_TUNNEL)
 	include_directories(${TUNNEL_INCLUDE_DIRS})
 endif()
@@ -114,7 +125,7 @@ if(MSVC)
 	include_directories(${CMAKE_PREFIX_PATH}/include/MSVC)
 endif()
 
-add_definitions(-DIN_LINPHONE)
+add_definitions("-DIN_LINPHONE")
 
 
 if(MSVC)
@@ -163,6 +174,7 @@ add_subdirectory(share)
 if(ENABLE_GTK_UI)
 	add_subdirectory(gtk)
 	add_subdirectory(pixmaps)
+	add_subdirectory(po)
 endif()
 if(ENABLE_TOOLS)
 	add_subdirectory(tools)

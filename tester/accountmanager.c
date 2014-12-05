@@ -121,7 +121,7 @@ void account_create_on_server(Account *account, const LinphoneProxyConfig *refcf
 	
 	vtable.registration_state_changed=account_created_on_server_cb;
 	vtable.auth_info_requested=account_created_auth_requested_cb;
-	lc=configure_lc_from(&vtable,NULL,NULL,account);
+	lc=configure_lc_from(&vtable,liblinphone_tester_file_prefix,NULL,account);
 	
 	cfg=linphone_core_create_proxy_config(lc);
 	linphone_address_set_password(tmp_identity,account->password);
@@ -133,6 +133,7 @@ void account_create_on_server(Account *account, const LinphoneProxyConfig *refcf
 	
 	server_addr=linphone_address_new(linphone_proxy_config_get_server_addr(refcfg));
 	linphone_address_set_transport(server_addr,LinphoneTransportTcp); /*use tcp for account creation*/
+	linphone_address_set_port(server_addr,0);
 	tmp=linphone_address_as_string(server_addr);
 	linphone_proxy_config_set_server_addr(cfg,tmp);
 	ms_free(tmp);

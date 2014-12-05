@@ -1032,7 +1032,21 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_addListener(JNIEnv* env,
 }
 
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_removeListener(JNIEnv* env, jobject thiz, jlong lc, jobject jlistener) {
-	//TODO
+	MSList* iterator;
+	LinphoneCore *core = (LinphoneCore*)lc;
+	jobject listener = env->NewGlobalRef(jlistener);
+	for (iterator = core->vtables; iterator != NULL; iterator = iterator->next) {
+		LinphoneCoreVTable *vTable = (LinphoneCoreVTable*)(iterator->data);
+		if (vTable) {
+			LinphoneCoreData *data = (LinphoneCoreData*) linphone_core_v_table_get_user_data(vTable);
+			if (data && env->IsSameObject(data->listener, listener)) {
+				linphone_core_remove_listener(core, vTable);
+				linphone_core_v_table_destroy(vTable);
+				break;
+			}
+		}
+	}
+	env->DeleteGlobalRef(listener);
 }
 
 extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_migrateToMultiTransport(JNIEnv*  env
@@ -3060,6 +3074,19 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setDeviceRotation(JNIEnv
 	linphone_core_set_device_rotation((LinphoneCore*)lc,rotation);
 }
 
+extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setRemoteRingbackTone(JNIEnv *env, jobject thiz, jlong lc, jstring jtone){
+	const char* tone = NULL;
+	if (jtone) tone=env->GetStringUTFChars(jtone, NULL);
+	linphone_core_set_remote_ringback_tone((LinphoneCore*)lc,tone);
+	if (tone) env->ReleaseStringUTFChars(jtone,tone);
+}
+
+extern "C" jstring Java_org_linphone_core_LinphoneCoreImpl_getRemoteRingbackTone(JNIEnv *env, jobject thiz, jlong lc){
+	const char *ret= linphone_core_get_remote_ringback_tone((LinphoneCore*)lc);
+	if (ret==NULL) return NULL;
+	jstring jvalue =env->NewStringUTF(ret);
+	return jvalue;
+}
 
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setFirewallPolicy(JNIEnv *env, jobject thiz, jlong lc, jint enum_value){
 	linphone_core_set_firewall_policy((LinphoneCore*)lc,(LinphoneFirewallPolicy)enum_value);
