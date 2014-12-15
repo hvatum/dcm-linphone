@@ -326,12 +326,32 @@ static void simple_call(void) {
 	LinphoneCoreManager* pauline;
 	const LinphoneAddress *from;
 	LinphoneCall *pauline_call;
+	LinphoneProxyConfig* marie_cfg;
+	const char* marie_id = NULL;
 
 	belle_sip_object_enable_leak_detector(TRUE);
 	begin=belle_sip_object_get_object_count();
 
 	marie = linphone_core_manager_new( "marie_rc");
 	pauline = linphone_core_manager_new( "pauline_rc");
+	
+	/* with the account manager, we might lose the identity */
+	marie_cfg = linphone_core_get_default_proxy_config(marie->lc);
+	marie_id = linphone_proxy_config_get_identity(marie_cfg);
+	{
+		LinphoneAddress* marie_addr = linphone_address_new(marie_id);
+		char* marie_tmp_id = NULL;
+		linphone_address_set_display_name(marie_addr, "Super Marie");
+		marie_tmp_id = linphone_address_as_string(marie_addr);
+
+		linphone_proxy_config_edit(marie_cfg);
+		linphone_proxy_config_set_identity(marie_cfg,marie_tmp_id);
+		linphone_proxy_config_done(marie_cfg);
+
+		ms_free(marie_tmp_id);
+		linphone_address_unref(marie_addr);
+	}
+
 	CU_ASSERT_TRUE(call(marie,pauline));
 	pauline_call=linphone_core_get_current_call(pauline->lc);
 	CU_ASSERT_PTR_NOT_NULL(pauline_call);
@@ -890,6 +910,26 @@ static void call_with_no_sdp(void) {
 	CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneCallEnd,1));
 	CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&marie->stat.number_of_LinphoneCallEnd,1));
 
+	linphone_core_manager_destroy(marie);
+	linphone_core_manager_destroy(pauline);
+}
+
+static void call_with_no_sdp_ack_without_sdp(void){
+	LinphoneCoreManager* marie = linphone_core_manager_new( "marie_rc");
+	LinphoneCoreManager* pauline = linphone_core_manager_new( "pauline_rc");
+	LinphoneCall *call;
+
+	linphone_core_enable_sdp_200_ack(marie->lc,TRUE);
+	
+	linphone_core_invite_address(marie->lc,pauline->identity);
+	CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneCallIncomingReceived,1));
+	call=linphone_core_get_current_call(pauline->lc);
+	if (call){
+		sal_call_enable_sdp_removal(call->op, TRUE); /*this will have the effect that the SDP received in the ACK will be ignored*/
+		linphone_core_accept_call(pauline->lc, call);
+		CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneCallError,1));
+		CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&marie->stat.number_of_LinphoneCallEnd,1));
+	}
 	linphone_core_manager_destroy(marie);
 	linphone_core_manager_destroy(pauline);
 }
@@ -2925,7 +2965,7 @@ static void multiple_early_media(void) {
 	marie2_call=linphone_core_get_current_call(marie2->lc);
 
 	/*wait a bit that streams are established*/
-	wait_for_list(lcs,&dummy,1,6000);
+	wait_for_list(lcs,&dummy,1,3000);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(pauline_call)->download_bandwidth>70);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(marie1_call)->download_bandwidth>70);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(marie2_call)->download_bandwidth>70);
@@ -3470,6 +3510,7 @@ test_t call_tests[] = {
 	{ "Early-media call with updated codec", early_media_call_with_codec_update},
 	{ "Call terminated by caller", call_terminated_by_caller },
 	{ "Call without SDP", call_with_no_sdp},
+	{ "Call without SDP and ACK without SDP", call_with_no_sdp_ack_without_sdp},
 	{ "Call paused resumed", call_paused_resumed },
 	{ "Call paused resumed with loss", call_paused_resumed_with_loss },
 	{ "Call paused resumed from callee", call_paused_resumed_from_callee },

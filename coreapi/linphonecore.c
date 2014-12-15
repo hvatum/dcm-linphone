@@ -1521,6 +1521,24 @@ void linphone_configuring_terminated(LinphoneCore *lc, LinphoneConfiguringState 
 	linphone_core_start(lc);
 }
 
+static int linphone_core_serialization_ref = 0;
+
+static void linphone_core_activate_log_serialization_if_needed(void) {
+	if (liblinphone_serialize_logs == TRUE) {
+		linphone_core_serialization_ref++;
+		if (linphone_core_serialization_ref == 1)
+			ortp_set_log_thread_id(ortp_thread_self());
+	}
+}
+
+static void linphone_core_deactivate_log_serialization_if_needed(void) {
+	if (liblinphone_serialize_logs == TRUE) {
+		--linphone_core_serialization_ref;
+		if (linphone_core_serialization_ref == 0)
+			ortp_set_log_thread_id(0);
+	}
+}
+
 static void linphone_core_init(LinphoneCore * lc, const LinphoneCoreVTable *vtable, LpConfig *config, void * userdata)
 {
 	const char *remote_provisioning_uri = NULL;
@@ -1537,9 +1555,7 @@ static void linphone_core_init(LinphoneCore * lc, const LinphoneCoreVTable *vtab
 
 	linphone_core_set_state(lc,LinphoneGlobalStartup,"Starting up");
 	ortp_init();
-	if (liblinphone_serialize_logs == TRUE) {
-		ortp_set_log_thread_id(ortp_thread_self());
-	}
+	linphone_core_activate_log_serialization_if_needed();
 	lc->dyn_pt=96;
 	lc->default_profile=rtp_profile_new("default profile");
 	linphone_core_assign_payload_type(lc,&payload_type_pcmu8000,0,NULL);
@@ -3922,10 +3938,10 @@ int _linphone_core_pause_call(LinphoneCore *lc, LinphoneCall *call)
 		linphone_core_notify_display_warning(lc,_("Could not pause the call"));
 	}
 	lc->current_call=NULL;
-	linphone_call_set_state(call,LinphoneCallPausing,"Pausing call");
 	linphone_core_notify_display_status(lc,_("Pausing the current call..."));
 	if (call->audiostream || call->videostream)
 		linphone_call_stop_media_streams (call);
+	linphone_call_set_state(call,LinphoneCallPausing,"Pausing call");
 	call->paused_by_app=FALSE;
 	return 0;
 }
@@ -5613,6 +5629,22 @@ MSVideoSize linphone_core_get_preview_video_size(const LinphoneCore *lc){
 }
 
 /**
+ * Returns the effective video size for the captured video as provided by the camera.
+ * When preview is disabled or not yet started, this function returns a zeroed video size.
+ * @see linphone_core_set_preview_video_size()
+ * @ingroup media_parameters
+ * @param lc the core
+ * @return a MSVideoSize
+**/
+MSVideoSize linphone_core_get_current_preview_video_size(const LinphoneCore *lc){
+	MSVideoSize ret={0};
+	if (lc->previewstream){
+		ret=video_preview_get_current_size(lc->previewstream);
+	}
+	return ret;
+}
+
+/**
  * Sets the preview video size by its name. See linphone_core_set_preview_video_size() for more information about this feature.
  *
  * @ingroup media_parameters
@@ -6267,9 +6299,7 @@ static void linphone_core_uninit(LinphoneCore *lc)
 	linphone_core_message_storage_close(lc);
 	ms_exit();
 	linphone_core_set_state(lc,LinphoneGlobalOff,"Off");
-	if (liblinphone_serialize_logs == TRUE) {
-		ortp_set_log_thread_id(0);
-	}
+	linphone_core_deactivate_log_serialization_if_needed();
 	ms_list_free_with_data(lc->vtables,(void (*)(void *))linphone_core_v_table_destroy);
 }
 
@@ -6389,8 +6419,29 @@ bool_t linphone_core_can_we_add_call(LinphoneCore *lc)
 static void notify_soundcard_usage(LinphoneCore *lc, bool_t used){
 	MSSndCard *card=lc->sound_conf.capt_sndcard;
 	if (card && ms_snd_card_get_capabilities(card) & MS_SND_CARD_CAP_IS_SLOW){
-		ms_message("Notifying soundcard that we don't need it anymore for calls.");
 		ms_snd_card_set_usage_hint(card,used);
+	}
+}
+
+void linphone_core_soundcard_hint_check( LinphoneCore* lc){
+	MSList* the_calls = lc->calls;
+	LinphoneCall* call = NULL;
+	bool_t remaining_paused = FALSE;
+
+	/* check if the remaining calls are paused */
+	while( the_calls ){
+		call = the_calls->data;
+		if( call->state == LinphoneCallPausing || call->state == LinphoneCallPaused ){
+			remaining_paused = TRUE;
+			break;
+		}
+		the_calls = the_calls->next;
+	}
+
+	/* if no more calls or all calls are paused, we can free the soundcard */
+	if ( (lc->calls==NULL || remaining_paused) && !lc->use_files){
+		ms_message("Notifying soundcard that we don't need it anymore for calls.");
+		notify_soundcard_usage(lc,FALSE);
 	}
 }
 
@@ -6420,7 +6471,7 @@ int linphone_core_del_call( LinphoneCore *lc, LinphoneCall *call)
 		return -1;
 	}
 	lc->calls = the_calls;
-	if (lc->calls==NULL) notify_soundcard_usage(lc,FALSE);
+
 	return 0;
 }
 

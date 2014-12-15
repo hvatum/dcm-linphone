@@ -39,6 +39,8 @@ const char* test_username="liblinphone_tester";
 const char* test_password="secret";
 const char* test_route="sip2.linphone.org";
 int liblinphone_tester_use_log_file=0;
+static int liblinphone_tester_keep_accounts_flag = 0;
+static int manager_count = 0;
 
 #if WINAPI_FAMILY_PHONE_APP
 const char *liblinphone_tester_file_prefix="Assets";
@@ -258,11 +260,15 @@ LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_f
 	else
 		proxy_count=0;
 
+	manager_count++;
+
 #if TARGET_OS_IPHONE
-	linphone_core_set_playback_device( mgr->lc, "AU: Audio Unit Tester");
-	linphone_core_set_capture_device( mgr->lc, "AU: Audio Unit Tester");
 	linphone_core_set_ringer_device( mgr->lc, "AQ: Audio Queue Device");
 	linphone_core_set_ringback(mgr->lc, NULL);
+	if( manager_count >= 2){
+		ms_message("Manager for '%s' using files", rc_file ? rc_file : "--");
+		linphone_core_use_files(mgr->lc, TRUE);
+	}
 #endif
 
 	if (proxy_count)
@@ -294,6 +300,7 @@ void linphone_core_manager_destroy(LinphoneCoreManager* mgr) {
 	if (mgr->lc) linphone_core_destroy(mgr->lc);
 	if (mgr->identity) linphone_address_destroy(mgr->identity);
 	if (mgr->stat.last_received_chat_message) linphone_chat_message_unref(mgr->stat.last_received_chat_message);
+	manager_count--;
 	ms_free(mgr);
 }
 
@@ -545,7 +552,10 @@ int liblinphone_tester_run_tests(const char *suite_name, const char *test_name) 
 	}
 
 	CU_cleanup_registry();
-	account_manager_destroy();
+
+	if( liblinphone_tester_keep_accounts_flag == 0){
+		liblinphone_tester_clear_accounts();
+	}
 	return ret;
 }
 
@@ -582,4 +592,13 @@ int liblinphone_tester_ipv6_available(void){
 	}
 	return FALSE;
 }
+
+void liblinphone_tester_keep_accounts( int keep ){
+	liblinphone_tester_keep_accounts_flag = keep;
+}
+
+void liblinphone_tester_clear_accounts(void){
+	account_manager_destroy();
+}
+
 

@@ -47,8 +47,6 @@ blacklisted_functions = [
 	'linphone_core_can_we_add_call',	# private function
 	'linphone_core_enable_log_collection',	# need to handle class properties
 	'linphone_core_get_audio_port_range',	# to be handwritten because of result via arguments
-	'linphone_core_get_sip_transports',	# missing LCSipTransports
-	'linphone_core_get_sip_transports_used',	# missing LCSipTransports
 	'linphone_core_get_supported_video_sizes',	# missing MSVideoSizeDef
 	'linphone_core_get_video_policy',	# missing LinphoneVideoPolicy
 	'linphone_core_get_video_port_range',	# to be handwritten because of result via arguments
@@ -61,7 +59,6 @@ blacklisted_functions = [
 	'linphone_core_set_log_handler',	# Hand-written but put directly in the linphone module
 	'linphone_core_set_log_level',	# There is no use to wrap this function
 	'linphone_core_set_video_policy',	# missing LinphoneVideoPolicy
-	'linphone_core_set_sip_transports',	# missing LCSipTransports
 	'linphone_proxy_config_get_privacy',	# missing LinphonePrivacyMask
 	'linphone_proxy_config_normalize_number',	# to be handwritten because of result via arguments
 	'linphone_proxy_config_set_file_transfer_server',	# defined but not implemented in linphone core
@@ -74,7 +71,8 @@ blacklisted_functions = [
 	'lp_config_section_to_dict'	# missing LinphoneDictionary
 ]
 hand_written_functions = [
-	HandWrittenInstanceMethod('ChatRoom', 'send_message2', 'linphone_chat_room_send_message2'),
+	HandWrittenClassMethod('Buffer', 'new_from_data', 'linphone_buffer_new_from_data'),
+	HandWrittenProperty('Buffer', 'content', 'linphone_buffer_get_content', 'linphone_buffer_set_content'),
 	HandWrittenProperty('Content', 'buffer', 'linphone_content_get_buffer', 'linphone_content_set_buffer'),
 	HandWrittenProperty('Core', 'sound_devices', 'linphone_core_get_sound_devices', None),
 	HandWrittenProperty('Core', 'video_devices', 'linphone_core_get_video_devices', None),

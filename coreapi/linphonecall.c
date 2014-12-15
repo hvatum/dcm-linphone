@@ -38,6 +38,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "mediastreamer2/mssndcard.h"
 
 static const char EC_STATE_STORE[] = ".linphone.ecstate";
+static const size_t EC_STATE_MAX_LEN = 1048576; // 1Mo
 
 static void linphone_call_stats_uninit(LinphoneCallStats *stats);
 
@@ -1018,6 +1019,7 @@ void linphone_call_set_state(LinphoneCall *call, LinphoneCallState cstate, const
 		if (cstate==LinphoneCallReleased){
 			linphone_call_set_released(call);
 		}
+		linphone_core_soundcard_hint_check(lc);
 	}
 }
 
@@ -1548,6 +1550,8 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	AudioStream *audiostream;
 	const char *location;
 	int dscp;
+	RtpTransport *meta_rtp=NULL;
+	RtpTransport *meta_rtcp=NULL;
 
 	if (call->audiostream != NULL) return;
 	if (call->sessions[0].rtp_session==NULL){
@@ -1580,14 +1584,15 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	audio_stream_enable_gain_control(audiostream,TRUE);
 	if (linphone_core_echo_cancellation_enabled(lc)){
 		int len,delay,framesize;
-		char *statestr=lp_config_read_relative_file(lc->config, EC_STATE_STORE);
+		char statestr[EC_STATE_MAX_LEN];
 		len=lp_config_get_int(lc->config,"sound","ec_tail_len",0);
 		delay=lp_config_get_int(lc->config,"sound","ec_delay",0);
 		framesize=lp_config_get_int(lc->config,"sound","ec_framesize",0);
 		audio_stream_set_echo_canceller_params(audiostream,len,delay,framesize);
-		if (statestr && audiostream->ec){
-			ms_filter_call_method(audiostream->ec,MS_ECHO_CANCELLER_SET_STATE_STRING,(void*)statestr);
-			ms_free(statestr);
+		if (audiostream->ec) {
+			if (lp_config_read_relative_file(lc->config, EC_STATE_STORE, statestr, EC_STATE_MAX_LEN) == 0) {
+				ms_filter_call_method(audiostream->ec, MS_ECHO_CANCELLER_SET_STATE_STRING, statestr);
+			}
 		}
 	}
 	audio_stream_enable_automatic_gain_control(audiostream,linphone_core_agc_enabled(lc));
@@ -1597,12 +1602,11 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	}
 
 	audio_stream_set_features(audiostream,linphone_core_get_audio_features(lc));
-
-	if (lc->rtptf){
+	rtp_session_get_transports(audiostream->ms.sessions.rtp_session,&meta_rtp,&meta_rtcp);
+	if (lc->rtptf && (meta_rtp==NULL && meta_rtcp==NULL)){
+		/*the transport just need to be created once, then they are kept into the RtpSession, which is the same for the entire call duration.*/
 		RtpTransport *artp=lc->rtptf->audio_rtp_func(lc->rtptf->audio_rtp_func_data, call->media_ports[0].rtp_port);
 		RtpTransport *artcp=lc->rtptf->audio_rtcp_func(lc->rtptf->audio_rtcp_func_data, call->media_ports[0].rtcp_port);
-		RtpTransport *meta_rtp;
-		RtpTransport *meta_rtcp;
 		meta_rtp_transport_new(&meta_rtp,TRUE,artp, 0);
 		meta_rtp_transport_new(&meta_rtcp,FALSE,artcp, 0);
 		rtp_session_set_transports(audiostream->ms.sessions.rtp_session,meta_rtp,meta_rtcp);
@@ -1617,6 +1621,8 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 void linphone_call_init_video_stream(LinphoneCall *call){
 #ifdef VIDEO_ENABLED
 	LinphoneCore *lc=call->core;
+	RtpTransport *meta_rtp=NULL;
+	RtpTransport *meta_rtcp=NULL;
 
 	if (call->videostream == NULL){
 		int video_recv_buf_size=lp_config_get_int(lc->config,"video","recv_buf_size",0);
@@ -1640,11 +1646,11 @@ void linphone_call_init_video_stream(LinphoneCall *call){
 		if (display_filter != NULL)
 			video_stream_set_display_filter_name(call->videostream,display_filter);
 		video_stream_set_event_callback(call->videostream,video_stream_event_cb, call);
-		if (lc->rtptf){
+		rtp_session_get_transports(call->videostream->ms.sessions.rtp_session,&meta_rtp,&meta_rtcp);
+		if (lc->rtptf && (meta_rtp==NULL && meta_rtcp==NULL)){
 			RtpTransport *vrtp=lc->rtptf->video_rtp_func(lc->rtptf->video_rtp_func_data, call->media_ports[1].rtp_port);
 			RtpTransport *vrtcp=lc->rtptf->video_rtcp_func(lc->rtptf->video_rtcp_func_data, call->media_ports[1].rtcp_port);
-			RtpTransport *meta_rtp;
-			RtpTransport *meta_rtcp;
+			
 			meta_rtp_transport_new(&meta_rtp,TRUE,vrtp, 0);
 			meta_rtp_transport_new(&meta_rtcp,FALSE,vrtcp, 0);
 			rtp_session_set_transports(call->videostream->ms.sessions.rtp_session,meta_rtp,meta_rtcp);
@@ -2758,16 +2764,30 @@ void linphone_call_stop_recording(LinphoneCall *call){
 **/
 
 static void report_bandwidth(LinphoneCall *call, MediaStream *as, MediaStream *vs){
-	call->stats[LINPHONE_CALL_STATS_AUDIO].download_bandwidth=(as!=NULL) ? (media_stream_get_down_bw(as)*1e-3) : 0;
-	call->stats[LINPHONE_CALL_STATS_AUDIO].upload_bandwidth=(as!=NULL) ? (media_stream_get_up_bw(as)*1e-3) : 0;
-	call->stats[LINPHONE_CALL_STATS_VIDEO].download_bandwidth=(vs!=NULL) ? (media_stream_get_down_bw(vs)*1e-3) : 0;
-	call->stats[LINPHONE_CALL_STATS_VIDEO].upload_bandwidth=(vs!=NULL) ? (media_stream_get_up_bw(vs)*1e-3) : 0;
-	ms_message("bandwidth usage for call [%p]: audio=[d=%.1f,u=%.1f] video=[d=%.1f,u=%.1f] kbit/sec",
+	bool_t as_active =  as ? (media_stream_get_state(as) == MSStreamStarted) : FALSE;
+	bool_t vs_active =  vs ? (media_stream_get_state(vs) == MSStreamStarted) : FALSE;
+	
+	call->stats[LINPHONE_CALL_STATS_AUDIO].download_bandwidth=(as_active) ? (media_stream_get_down_bw(as)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_AUDIO].upload_bandwidth=(as_active) ? (media_stream_get_up_bw(as)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_VIDEO].download_bandwidth=(vs_active) ? (media_stream_get_down_bw(vs)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_VIDEO].upload_bandwidth=(vs_active) ? (media_stream_get_up_bw(vs)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_AUDIO].rtcp_download_bandwidth=(as_active) ? (media_stream_get_rtcp_down_bw(as)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_AUDIO].rtcp_upload_bandwidth=(as_active) ? (media_stream_get_rtcp_up_bw(as)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_VIDEO].rtcp_download_bandwidth=(vs_active) ? (media_stream_get_rtcp_down_bw(vs)*1e-3) : 0;
+	call->stats[LINPHONE_CALL_STATS_VIDEO].rtcp_upload_bandwidth=(vs_active) ? (media_stream_get_rtcp_up_bw(vs)*1e-3) : 0;
+
+	ms_message("Bandwidth usage for call [%p]: audio[ rtp]=[d=%.1f,u=%.1f], video[ rtp]=[d=%.1f,u=%.1f] kbit/sec",
 		call,
 		call->stats[LINPHONE_CALL_STATS_AUDIO].download_bandwidth,
 		call->stats[LINPHONE_CALL_STATS_AUDIO].upload_bandwidth ,
 		call->stats[LINPHONE_CALL_STATS_VIDEO].download_bandwidth,
 		call->stats[LINPHONE_CALL_STATS_VIDEO].upload_bandwidth
+	);
+	ms_message("                                             [rtcp]=[d=%.1f,u=%.1f], video[rtcp]=[d=%.1f,u=%.1f] kbit/sec",
+		call->stats[LINPHONE_CALL_STATS_AUDIO].rtcp_download_bandwidth,
+		call->stats[LINPHONE_CALL_STATS_AUDIO].rtcp_upload_bandwidth ,
+		call->stats[LINPHONE_CALL_STATS_VIDEO].rtcp_download_bandwidth,
+		call->stats[LINPHONE_CALL_STATS_VIDEO].rtcp_upload_bandwidth
 	);
 }
 

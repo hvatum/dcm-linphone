@@ -366,12 +366,14 @@ LINPHONE_PUBLIC const char* linphone_privacy_to_string(LinphonePrivacy privacy);
 
 
 #ifdef IN_LINPHONE
+#include "buffer.h"
 #include "call_log.h"
 #include "call_params.h"
 #include "content.h"
 #include "event.h"
 #include "linphonefriend.h"
 #else
+#include "linphone/buffer.h"
 #include "linphone/call_log.h"
 #include "linphone/call_params.h"
 #include "linphone/content.h"
@@ -400,6 +402,7 @@ LINPHONE_PUBLIC void linphone_address_set_transport(LinphoneAddress *uri,Linphon
 LINPHONE_PUBLIC	char *linphone_address_as_string(const LinphoneAddress *u);
 LINPHONE_PUBLIC	char *linphone_address_as_string_uri_only(const LinphoneAddress *u);
 LINPHONE_PUBLIC	bool_t linphone_address_weak_equal(const LinphoneAddress *a1, const LinphoneAddress *a2);
+LINPHONE_PUBLIC bool_t linphone_address_equal(const LinphoneAddress *a1, const LinphoneAddress *a2);
 LINPHONE_PUBLIC void linphone_address_set_password(LinphoneAddress *addr, const char *passwd);
 LINPHONE_PUBLIC const char *linphone_address_get_password(const LinphoneAddress *addr);
 LINPHONE_PUBLIC void linphone_address_set_header(LinphoneAddress *addr, const char *header_name, const char *header_value);
@@ -539,6 +542,8 @@ struct _LinphoneCallStats {
 	float local_late_rate; /**<percentage of packet received too late over last second*/
 	float local_loss_rate; /**<percentage of lost packet over last second*/
 	int updated; /**< Tell which RTCP packet has been updated (received_rtcp or sent_rtcp). Can be either LINPHONE_CALL_STATS_RECEIVED_RTCP_UPDATE or LINPHONE_CALL_STATS_SENT_RTCP_UPDATE */
+	float rtcp_download_bandwidth; /**<RTCP download bandwidth measurement of received stream, expressed in kbit/s, including IP/UDP/RTP headers*/
+	float rtcp_upload_bandwidth; /**<RTCP download bandwidth measurement of sent stream, expressed in kbit/s, including IP/UDP/RTP headers*/
 };
 
 /**
@@ -1347,30 +1352,24 @@ typedef void (*LinphoneChatMessageCbsMsgStateChangedCb)(LinphoneChatMessage* msg
 
 /**
  * File transfer receive callback prototype. This function is called by the core upon an incoming File transfer is started. This function may be call several time for the same file in case of large file.
- *
  * @param message #LinphoneChatMessage message from which the body is received.
  * @param content #LinphoneContent incoming content information
- * @param buff pointer to the received data
- * @param size number of bytes to be read from buff. 0 means end of file.
- *
+ * @param buffer #LinphoneBuffer holding the received data. Empty buffer means end of file.
  */
-typedef void (*LinphoneChatMessageCbsFileTransferRecvCb)(LinphoneChatMessage *message, const LinphoneContent* content, const char* buff, size_t size);
+typedef void (*LinphoneChatMessageCbsFileTransferRecvCb)(LinphoneChatMessage *message, const LinphoneContent* content, const LinphoneBuffer *buffer);
 
 /**
- * File transfer send callback prototype. This function is called by the core upon an outgoing File transfer is started. This function is called until size is set to 0.
- * <br> a #LinphoneContent with a size equal zero
- *
+ * File transfer send callback prototype. This function is called by the core when an outgoing file transfer is started. This function is called until size is set to 0.
  * @param message #LinphoneChatMessage message from which the body is received.
  * @param content #LinphoneContent outgoing content
- * @param buff pointer to the buffer where data chunk shall be written by the app
- * @param size as input value, it represents the number of bytes expected by the framework. As output value, it means the number of bytes wrote by the application in the buffer. 0 means end of file.
- *
+ * @param offset the offset in the file from where to get the data to be sent
+ * @param size the number of bytes expected by the framework
+ * @return A LinphoneBuffer object holding the data written by the application. An empty buffer means end of file.
  */
-typedef void (*LinphoneChatMessageCbsFileTransferSendCb)(LinphoneChatMessage *message,  const LinphoneContent* content, char* buff, size_t* size);
+typedef LinphoneBuffer * (*LinphoneChatMessageCbsFileTransferSendCb)(LinphoneChatMessage *message,  const LinphoneContent* content, size_t offset, size_t size);
 
 /**
  * File transfer progress indication callback prototype.
- *
  * @param message #LinphoneChatMessage message from which the body is received.
  * @param content #LinphoneContent incoming content information
  * @param offset The number of bytes sent/received since the beginning of the transfer.
@@ -1431,8 +1430,23 @@ LINPHONE_PUBLIC	void linphone_chat_room_send_message2(LinphoneChatRoom *cr, Linp
 LINPHONE_PUBLIC void linphone_chat_room_send_chat_message(LinphoneChatRoom *cr, LinphoneChatMessage *msg);
 LINPHONE_PUBLIC void linphone_chat_room_update_url(LinphoneChatRoom *cr, LinphoneChatMessage *msg);
 LINPHONE_PUBLIC MSList *linphone_chat_room_get_history(LinphoneChatRoom *cr,int nb_message);
+
+/**
+ * Mark all messages of the conversation as read
+ * @param[in] cr The #LinphoneChatRoom object corresponding to the conversation.
+ */
 LINPHONE_PUBLIC void linphone_chat_room_mark_as_read(LinphoneChatRoom *cr);
+/**
+ * Delete a message from the chat room history.
+ * @param[in] cr The #LinphoneChatRoom object corresponding to the conversation.
+ * @param[in] msg The #LinphoneChatMessage object to remove. 
+ */
+
 LINPHONE_PUBLIC void linphone_chat_room_delete_message(LinphoneChatRoom *cr, LinphoneChatMessage *msg);
+/**
+ * Delete all messages from the history
+ * @param[in] cr The #LinphoneChatRoom object corresponding to the conversation.
+ */
 LINPHONE_PUBLIC void linphone_chat_room_delete_history(LinphoneChatRoom *cr);
 /**
  * Gets the number of messages in a chat room.
@@ -1463,6 +1477,11 @@ LINPHONE_PUBLIC void linphone_chat_room_compose(LinphoneChatRoom *cr);
  */
 LINPHONE_PUBLIC bool_t linphone_chat_room_is_remote_composing(const LinphoneChatRoom *cr);
 
+/**
+ * Gets the number of unread messages in the chatroom.
+ * @param[in] cr The "LinphoneChatRoom object corresponding to the conversation.
+ * @return the number of unread messages.
+ */
 LINPHONE_PUBLIC int linphone_chat_room_get_unread_messages_count(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_lc(LinphoneChatRoom *cr);
 LINPHONE_PUBLIC LinphoneCore* linphone_chat_room_get_core(LinphoneChatRoom *cr);
@@ -2774,6 +2793,7 @@ LINPHONE_PUBLIC void linphone_core_set_preferred_video_size(LinphoneCore *lc, MS
 LINPHONE_PUBLIC void linphone_core_set_preview_video_size(LinphoneCore *lc, MSVideoSize vsize);
 LINPHONE_PUBLIC void linphone_core_set_preview_video_size_by_name(LinphoneCore *lc, const char *name);
 LINPHONE_PUBLIC MSVideoSize linphone_core_get_preview_video_size(const LinphoneCore *lc);
+LINPHONE_PUBLIC MSVideoSize linphone_core_get_current_preview_video_size(const LinphoneCore *lc);
 LINPHONE_PUBLIC MSVideoSize linphone_core_get_preferred_video_size(const LinphoneCore *lc);
 
 /**
@@ -3170,6 +3190,7 @@ LINPHONE_PUBLIC void linphone_core_set_tone(LinphoneCore *lc, LinphoneToneID id,
  * Globaly set an http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml. This value can also be set for a dedicated account using #linphone_proxy_config_set_file_transfer_server
  * @param[in] core #LinphoneCore to be modified
  * @param[in] server_url URL of the file server like https://file.linphone.org/upload.php
+ * @ingroup misc
  * */
 LINPHONE_PUBLIC void linphone_core_set_file_transfer_server(LinphoneCore *core, const char * server_url);
 
@@ -3177,6 +3198,7 @@ LINPHONE_PUBLIC void linphone_core_set_file_transfer_server(LinphoneCore *core, 
  * Get the globaly set http file transfer server to be used for content type application/vnd.gsma.rcs-ft-http+xml.
  * @param[in] core #LinphoneCore from which to get the server_url
  * @return URL of the file server like https://file.linphone.org/upload.php
+ * @ingroup misc
  * */
 LINPHONE_PUBLIC const char * linphone_core_get_file_transfer_server(LinphoneCore *core);
 

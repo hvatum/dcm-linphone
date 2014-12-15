@@ -194,6 +194,14 @@ class ArgumentType:
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
 			self.cast_convert_func_result = False
+		elif self.basic_type == 'LCSipTransports':
+			self.type_str = 'linphone.SipTransports'
+			self.check_func = 'PyLinphoneSipTransports_Check'
+			self.convert_func = 'PyLinphoneSipTransports_AsLCSipTransports'
+			self.convert_from_func = 'PyLinphoneSipTransports_FromLCSipTransports'
+			self.fmt_str = 'O'
+			self.cfmt_str = '%p'
+			self.cast_convert_func_result = False
 		else:
 			if strip_leading_linphone(self.basic_type) in self.linphone_module.enum_names:
 				self.type_str = 'int'
@@ -230,24 +238,7 @@ class MethodDefinition:
 		self.method_type = 'instancemethod'
 
 	def format_local_variables_definition(self):
-		body = ''
-		if self.xml_method_return is not None:
-			self.return_type = self.xml_method_return.get('type')
-			self.return_complete_type = self.xml_method_return.get('completetype')
-			self.return_contained_type = self.xml_method_return.get('containedtype')
-		if is_callback(self.return_complete_type):
-			body += "\tPyObject * pyresult;\n"
-			body += "\tPyObject * pyret;\n"
-			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
-			self.build_value_format = argument_type.fmt_str
-		elif self.return_complete_type != 'void':
-			body += "\t" + self.return_complete_type + " cresult;\n"
-			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
-			self.build_value_format = argument_type.fmt_str
-			if self.build_value_format == 'O':
-				body += "\tPyObject * pyresult;\n"
-			body += "\tPyObject * pyret;\n"
-			body += "\tconst char *pyret_fmt;\n"
+		body = self.format_local_return_variables_definition()
 		if self.self_arg is not None:
 			body += "\t" + self.self_arg.get('completetype') + "native_ptr;\n"
 		for xml_method_arg in self.xml_method_args:
@@ -463,6 +454,27 @@ class MethodDefinition:
 """.format(arg_name=arg_name, arg_type=strip_leading_linphone(arg_type))
 		if body != '':
 			body = body[1:] # Remove leading '\t'
+		return body
+
+	def format_local_return_variables_definition(self):
+		body = ''
+		if self.xml_method_return is not None:
+			self.return_type = self.xml_method_return.get('type')
+			self.return_complete_type = self.xml_method_return.get('completetype')
+			self.return_contained_type = self.xml_method_return.get('containedtype')
+		if is_callback(self.return_complete_type):
+			body += "\tPyObject * pyresult;\n"
+			body += "\tPyObject * pyret;\n"
+			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
+			self.build_value_format = argument_type.fmt_str
+		elif self.return_complete_type != 'void':
+			body += "\t" + self.return_complete_type + " cresult;\n"
+			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
+			self.build_value_format = argument_type.fmt_str
+			if self.build_value_format == 'O':
+				body += "\tPyObject * pyresult;\n"
+			body += "\tPyObject * pyret;\n"
+			body += "\tconst char *pyret_fmt;\n"
 		return body
 
 	def parse_method_node(self):
@@ -770,6 +782,7 @@ class EventCallbackMethodDefinition(MethodDefinition):
 		nocallbacks_class_name = class_name
 		if class_name.endswith('Cbs'):
 			nocallbacks_class_name = class_name[:-3]
+		returnvars = self.format_local_return_variables_definition()
 		common = \
 """	pylinphone_{class_name}Object *pyself = (pylinphone_{class_name}Object *){function_prefix}get_user_data(self);
 	PyObject *func;
@@ -788,21 +801,26 @@ class EventCallbackMethodDefinition(MethodDefinition):
 			argument_type = ArgumentType(arg_type, arg_complete_type, arg_contained_type, self.linphone_module)
 			if argument_type.fmt_str == 'O':
 				specific += "\tPyObject * py" + arg_name + " = NULL;\n"
-		return "{common}\n{specific}".format(common=common, specific=specific)
+		return "{returnvars}\n{common}\n{specific}".format(returnvars=returnvars, common=common, specific=specific)
 
 	def format_arguments_parsing(self):
+		return_str = ''
+		if self.return_complete_type != 'void':
+			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
+			if argument_type.fmt_str == 'O':
+				return_str = 'NULL'
 		if self.class_['event_class'] == 'Core':
 			return \
-"""	if (Py_REFCNT(pyself) <= 0) return;
+"""	if (Py_REFCNT(pyself) <= 0) return {return_str};
 	func = PyDict_GetItemString(pyself->vtable_dict, "{name}");
 	pygil_state = PyGILState_Ensure();
-""".format(name=self.class_['event_name'])
+""".format(name=self.class_['event_name'], return_str=return_str)
 		else:
 			return \
-"""	if (Py_REFCNT(pyself) <= 0) return;
+"""	if (Py_REFCNT(pyself) <= 0) return {return_str};
 	func = pycbs->{event_name};
 	pygil_state = PyGILState_Ensure();
-""".format(event_name=self.class_['event_name'])
+""".format(event_name=self.class_['event_name'], return_str=return_str)
 
 	def format_enter_trace(self):
 		fmt = '%p'
@@ -824,6 +842,7 @@ class EventCallbackMethodDefinition(MethodDefinition):
 
 	def format_c_function_call(self):
 		create_python_objects_code = ''
+		convert_python_result_code = ''
 		fmt = 'O'
 		args = ['pyself']
 		for xml_method_arg in self.xml_method_args:
@@ -844,22 +863,52 @@ class EventCallbackMethodDefinition(MethodDefinition):
 					type_class = self.find_class_definition(arg_type)
 					create_python_objects_code += "\t\tpy{name} = pylinphone_{arg_type}_from_native_ptr(&pylinphone_{arg_type}Type, {name});\n".format(name=arg_name, arg_type=strip_leading_linphone(arg_type))
 		args=', '.join(args)
+		if self.return_complete_type != 'void':
+			argument_type = ArgumentType(self.return_type, self.return_complete_type, self.return_contained_type, self.linphone_module)
+			if argument_type.fmt_str == 'O':
+				convert_python_result_code = \
+"""		if ((pyresult != Py_None) && !PyObject_IsInstance(pyresult, (PyObject *)&pylinphone_{class_name}Type)) {{
+			PyErr_SetString(PyExc_TypeError, "The return value must be a linphone.{class_name} instance.");
+			return NULL;
+		}}
+		if ((cresult = pylinphone_{class_name}_get_native_ptr(pyresult)) == NULL) {{
+			return NULL;
+		}}
+""".format(class_name=strip_leading_linphone(self.return_type))
+
+			else:
+				convert_python_result_code = "\t\tcresult = {convertfunc}(pyresult);\n".format(convertfunc=argument_type.convert_func)			
 		return \
 """	if ((func != NULL) && PyCallable_Check(func)) {{
 {create_python_objects_code}
 		args = Py_BuildValue("{fmt}", {args});
-		if (PyEval_CallObject(func, args) == NULL) {{
+		pyresult = PyEval_CallObject(func, args);
+		if (pyresult == NULL) {{
 			PyErr_Print();
 		}}
 		Py_DECREF(args);
+{convert_python_result_code}
 	}}
-""".format(fmt=fmt, args=args, create_python_objects_code=create_python_objects_code)
+""".format(fmt=fmt, args=args, create_python_objects_code=create_python_objects_code, convert_python_result_code=convert_python_result_code)
 
 	def format_return_trace(self):
 		return "\tpylinphone_trace(-1, \"[PYLINPHONE] <<< %s\", __FUNCTION__);\n"
 
 	def format_return_result(self):
-		return '\tPyGILState_Release(pygil_state);'
+		s = '\tPyGILState_Release(pygil_state);'
+		if self.return_complete_type != 'void':
+			s += '\n\treturn cresult;'
+		return s
+
+	def format_local_return_variables_definition(self):
+		body = "\tPyObject * pyresult;"
+		if self.xml_method_return is not None:
+			self.return_type = self.xml_method_return.get('type')
+			self.return_complete_type = self.xml_method_return.get('completetype')
+			self.return_contained_type = self.xml_method_return.get('containedtype')
+		if self.return_complete_type != 'void':
+			body += "\n\t" + self.return_complete_type + " cresult;"
+		return body
 
 	def format(self):
 		body = MethodDefinition.format(self)
@@ -874,10 +923,10 @@ class EventCallbackMethodDefinition(MethodDefinition):
 			arg_complete_type = xml_method_arg.get('completetype')
 			arguments.append(arg_complete_type + ' ' + arg_name)
 		definition = \
-"""static void pylinphone_{class_name}_callback_{event_name}({arguments}) {{
+"""static {returntype} pylinphone_{class_name}_callback_{event_name}({arguments}) {{
 {body}
 }}
-""".format(class_name=class_name, event_name=self.class_['event_name'], arguments=', '.join(arguments), body=body)
+""".format(returntype=self.return_complete_type, class_name=class_name, event_name=self.class_['event_name'], arguments=', '.join(arguments), body=body)
 		return definition
 
 

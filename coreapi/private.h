@@ -374,6 +374,8 @@ void linphone_notify_parse_presence(SalOp *op, const char *content_type, const c
 void linphone_notify_convert_presence_to_xml(SalOp *op, SalPresenceModel *presence, const char *contact, char **content);
 void linphone_notify_recv(LinphoneCore *lc, SalOp *op, SalSubscribeStatus ss, SalPresenceModel *model);
 void linphone_proxy_config_process_authentication_failure(LinphoneCore *lc, SalOp *op);
+void linphone_core_soundcard_hint_check(LinphoneCore* lc);
+
 
 void linphone_subscription_answered(LinphoneCore *lc, SalOp *op);
 void linphone_subscription_closed(LinphoneCore *lc, SalOp *op);
@@ -445,8 +447,14 @@ bool_t linphone_core_symmetric_rtp_enabled(LinphoneCore*lc);
 
 void linphone_core_queue_task(LinphoneCore *lc, belle_sip_source_func_t task_fun, void *data, const char *task_description);
 
-LINPHONE_PUBLIC bool_t linphone_proxy_config_address_equal(const LinphoneAddress *a, const LinphoneAddress *b);
-LINPHONE_PUBLIC bool_t linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
+typedef enum _LinphoneProxyConfigAddressComparisonResult{
+	LinphoneProxyConfigAddressDifferent,
+	LinphoneProxyConfigAddressEqual,
+	LinphoneProxyConfigAddressWeakEqual
+} LinphoneProxyConfigAddressComparisonResult;
+
+LINPHONE_PUBLIC LinphoneProxyConfigAddressComparisonResult linphone_proxy_config_address_equal(const LinphoneAddress *a, const LinphoneAddress *b);
+LINPHONE_PUBLIC LinphoneProxyConfigAddressComparisonResult linphone_proxy_config_is_server_config_changed(const LinphoneProxyConfig* obj);
 void _linphone_proxy_config_unregister(LinphoneProxyConfig *obj);
 void _linphone_proxy_config_release_ops(LinphoneProxyConfig *obj);
 
@@ -927,6 +935,14 @@ struct _LinphoneContent {
 
 BELLE_SIP_DECLARE_VPTR(LinphoneContent);
 
+struct _LinphoneBuffer {
+	belle_sip_object_t base;
+	void *user_data;
+	uint8_t *content;	/**< A pointer to the buffer content */
+	size_t size;	/**< The size of the buffer content */
+};
+
+BELLE_SIP_DECLARE_VPTR(LinphoneBuffer);
 
 
 /*****************************************************************************
@@ -1003,6 +1019,7 @@ const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc);
   */
 
 BELLE_SIP_DECLARE_TYPES_BEGIN(linphone,10000)
+BELLE_SIP_TYPE_ID(LinphoneBuffer),
 BELLE_SIP_TYPE_ID(LinphoneContactProvider),
 BELLE_SIP_TYPE_ID(LinphoneContactSearch),
 BELLE_SIP_TYPE_ID(LinphoneCall),
