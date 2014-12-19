@@ -5638,9 +5638,13 @@ MSVideoSize linphone_core_get_preview_video_size(const LinphoneCore *lc){
 **/
 MSVideoSize linphone_core_get_current_preview_video_size(const LinphoneCore *lc){
 	MSVideoSize ret={0};
+#ifndef VIDEO_ENABLED
+	ms_error("linphone_core_get_current_preview_video_size() fail. Support for video is disabled");
+#else
 	if (lc->previewstream){
 		ret=video_preview_get_current_size(lc->previewstream);
 	}
+#endif
 	return ret;
 }
 
@@ -6426,20 +6430,20 @@ static void notify_soundcard_usage(LinphoneCore *lc, bool_t used){
 void linphone_core_soundcard_hint_check( LinphoneCore* lc){
 	MSList* the_calls = lc->calls;
 	LinphoneCall* call = NULL;
-	bool_t remaining_paused = FALSE;
+	bool_t dont_need_sound = TRUE;
 
 	/* check if the remaining calls are paused */
 	while( the_calls ){
 		call = the_calls->data;
-		if( call->state == LinphoneCallPausing || call->state == LinphoneCallPaused ){
-			remaining_paused = TRUE;
+		if( call->state != LinphoneCallPausing && call->state != LinphoneCallPaused ){
+			dont_need_sound = FALSE;
 			break;
 		}
 		the_calls = the_calls->next;
 	}
 
 	/* if no more calls or all calls are paused, we can free the soundcard */
-	if ( (lc->calls==NULL || remaining_paused) && !lc->use_files){
+	if ( (lc->calls==NULL || dont_need_sound) && !lc->use_files){
 		ms_message("Notifying soundcard that we don't need it anymore for calls.");
 		notify_soundcard_usage(lc,FALSE);
 	}
@@ -7058,7 +7062,7 @@ int linphone_payload_type_get_normal_bitrate(const LinphonePayloadType *pt) {
 	return pt->normal_bitrate;
 }
 
-char * linphone_payload_type_get_mime_type(const LinphonePayloadType *pt) {
+const char * linphone_payload_type_get_mime_type(const LinphonePayloadType *pt) {
 	return pt->mime_type;
 }
 
@@ -7071,9 +7075,6 @@ LinphoneCoreVTable *linphone_core_v_table_new() {
 }
 
 void linphone_core_v_table_set_user_data(LinphoneCoreVTable *table, void *data) {
-	if (table->user_data) {
-		ms_free(table->user_data);
-	}
 	table->user_data = data;
 }
 
@@ -7082,9 +7083,6 @@ void* linphone_core_v_table_get_user_data(LinphoneCoreVTable *table) {
 }
 
 void linphone_core_v_table_destroy(LinphoneCoreVTable* table) {
-	if (table->user_data) {
-		ms_free(table->user_data);
-	}
 	ms_free(table);
 }
 

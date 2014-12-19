@@ -293,6 +293,11 @@ static void linphone_chat_message_process_response_from_post_file(void *data, co
 			/* create a user body handler to take care of the file and add the content disposition and content-type headers */
 			if (msg->file_transfer_filepath != NULL) {
 				first_part_bh=(belle_sip_body_handler_t *)belle_sip_file_body_handler_new(msg->file_transfer_filepath,NULL,msg);
+			} else if (linphone_content_get_buffer(msg->file_transfer_information) != NULL) {
+				first_part_bh=(belle_sip_body_handler_t *)belle_sip_memory_body_handler_new_from_buffer(
+					linphone_content_get_buffer(msg->file_transfer_information),
+					linphone_content_get_size(msg->file_transfer_information),
+					NULL,msg);
 			} else {
 				first_part_bh=(belle_sip_body_handler_t *)belle_sip_user_body_handler_new(linphone_content_get_size(msg->file_transfer_information),NULL,NULL,linphone_chat_message_file_transfer_on_send_body,msg);
 			}
@@ -584,8 +589,13 @@ static void _linphone_chat_room_send_message(LinphoneChatRoom *cr, LinphoneChatM
 		belle_http_request_listener_t *l;
 		belle_generic_uri_t *uri;
 		belle_http_request_t *req;
+		const char *transfer_server = linphone_core_get_file_transfer_server(cr->lc);
 
-		uri=belle_generic_uri_parse(linphone_core_get_file_transfer_server(cr->lc));
+		if (transfer_server == NULL) {
+			ms_warning("Cannot send file transfer message: no file transfer server configured.");
+			return;
+		}
+		uri=belle_generic_uri_parse(transfer_server);
 
 		req=belle_http_request_create("POST",
 				uri,

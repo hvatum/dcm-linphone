@@ -15,6 +15,7 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
+import re
 from sets import Set
 import sys
 
@@ -24,6 +25,18 @@ def strip_leading_linphone(s):
 		return s[8:]
 	else:
 		return s
+
+def remove_useless_enum_prefix(senum, svalue):
+	lenum = re.findall('[A-Z][^A-Z]*', senum)
+	lvalue = re.findall('[A-Z][^A-Z]*', svalue)
+	if len(lenum) == 0 or len(lvalue) == 0:
+		return svalue
+	if lenum[0] == lvalue[0]:
+		i = 0
+		while i < len(lenum) and lenum[i] == lvalue[i]:
+			i += 1
+		return ''.join(lvalue[i:])
+	return svalue
 
 def is_callback(s):
 	return s.startswith('Linphone') and s.endswith('Cb')
@@ -42,27 +55,28 @@ def compute_event_name(s, className):
 
 
 class HandWrittenCode:
-	def __init__(self, _class, name, func_list):
+	def __init__(self, _class, name, func_list, doc = ''):
 		self._class = _class
 		self.name = name
 		self.func_list = func_list
+		self.doc = doc
 
 class HandWrittenInstanceMethod(HandWrittenCode):
-	def __init__(self, _class, name, cfunction):
-		HandWrittenCode.__init__(self, _class, name, [cfunction])
+	def __init__(self, _class, name, cfunction, doc = ''):
+		HandWrittenCode.__init__(self, _class, name, [cfunction], doc)
 
 class HandWrittenClassMethod(HandWrittenCode):
-	def __init__(self, _class, name, cfunction):
-		HandWrittenCode.__init__(self, _class, name, [cfunction])
+	def __init__(self, _class, name, cfunction, doc = ''):
+		HandWrittenCode.__init__(self, _class, name, [cfunction], doc)
 
 class HandWrittenProperty(HandWrittenCode):
-	def __init__(self, _class, name, getter_cfunction = None, setter_cfunction = None):
+	def __init__(self, _class, name, getter_cfunction = None, setter_cfunction = None, doc = ''):
 		func_list = []
 		if getter_cfunction is not None:
 			func_list.append(getter_cfunction)
 		if setter_cfunction is not None:
 			func_list.append(setter_cfunction)
-		HandWrittenCode.__init__(self, _class, name, func_list)
+		HandWrittenCode.__init__(self, _class, name, func_list, doc)
 		self.getter_cfunction = getter_cfunction
 		self.setter_cfunction = setter_cfunction
 
@@ -74,8 +88,8 @@ class ArgumentType:
 		self.contained_type = contained_type
 		self.linphone_module = linphone_module
 		self.type_str = None
-		self.check_func = None
-		self.convert_func = None
+		self.check_condition = None
+		self.convert_code = None
 		self.convert_from_func = None
 		self.fmt_str = 'O'
 		self.cfmt_str = '%p'
@@ -91,33 +105,33 @@ class ArgumentType:
 		if self.basic_type == 'char':
 			if '*' in splitted_type:
 				self.type_str = 'string'
-				self.check_func = 'PyString_Check'
-				self.convert_func = 'PyString_AsString'
+				self.check_condition = "!PyString_Check({arg_name})"
+				self.convert_code = "{result_name}{result_suffix} = {cast}PyString_AsString({arg_name});\n"
 				self.fmt_str = 'z'
 				self.cfmt_str = '\\"%s\\"'
 			else:
 				self.type_str = 'int'
-				self.check_func = 'PyInt_Check'
-				self.convert_func = 'PyInt_AsLong'
+				self.check_condition = "!PyInt_Check({arg_name}) && !PyLong_Check({arg_name})"
+				self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AsLong({arg_name});\n"
 				self.fmt_str = 'b'
 				self.cfmt_str = '%08x'
 		elif self.basic_type == 'int':
 			if 'unsigned' in splitted_type:
 				self.type_str = 'unsigned int'
-				self.check_func = 'PyInt_Check'
-				self.convert_func = 'PyInt_AsUnsignedLongMask'
+				self.check_condition = "!PyInt_Check({arg_name})"
+				self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AsUnsignedLongMask({arg_name});\n"
 				self.fmt_str = 'I'
 				self.cfmt_str = '%u'
 			else:
 				self.type_str = 'int'
-				self.check_func = 'PyInt_Check'
-				self.convert_func = 'PyInt_AS_LONG'
+				self.check_condition = "!PyInt_Check({arg_name})"
+				self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AS_LONG({arg_name});\n"
 				self.fmt_str = 'i'
 				self.cfmt_str = '%d'
 		elif self.basic_type in ['int8_t', 'int16_t' 'int32_t']:
 			self.type_str = 'int'
-			self.check_func = 'PyInt_Check'
-			self.convert_func = 'PyInt_AS_LONG'
+			self.check_condition = "!PyInt_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AS_LONG({arg_name});\n"
 			if self.basic_type == 'int8_t':
 					self.fmt_str = 'c'
 			elif self.basic_type == 'int16_t':
@@ -127,8 +141,8 @@ class ArgumentType:
 			self.cfmt_str = '%d'
 		elif self.basic_type in ['uint8_t', 'uint16_t', 'uint32_t']:
 			self.type_str = 'unsigned int'
-			self.check_func = 'PyInt_Check'
-			self.convert_func = 'PyInt_AsUnsignedLongMask'
+			self.check_condition = "!PyInt_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AsUnsignedLongMask({arg_name});\n"
 			if self.basic_type == 'uint8_t':
 				self.fmt_str = 'b'
 			elif self.basic_type == 'uint16_t':
@@ -138,66 +152,83 @@ class ArgumentType:
 			self.cfmt_str = '%u'
 		elif self.basic_type == 'int64_t':
 			self.type_str = '64bits int'
-			self.check_func = 'PyLong_Check'
-			self.convert_func = 'PyLong_AsLongLong'
+			self.check_condition = "!PyInt_Check({arg_name}) && !PyLong_Check({arg_name})"
+			self.convert_code = \
+"""if (PyInt_Check({arg_name})) {result_name}{result_suffix} = {cast}(PY_LONG_LONG)PyInt_AsLong({arg_name});
+	else if (PyLong_Check({arg_name})) {result_name}{result_suffix} = {cast}PyLong_AsLongLong({arg_name});
+"""
 			self.fmt_str = 'L'
 			self.cfmt_str = '%ld'
 		elif self.basic_type == 'uint64_t':
 			self.type_str = '64bits unsigned int'
-			self.check_func = 'PyLong_Check'
-			self.convert_func = 'PyLong_AsUnsignedLongLong'
+			self.check_condition = "!PyLong_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyLong_AsUnsignedLongLong({arg_name});\n"
 			self.fmt_str = 'K'
 			self.cfmt_str = '%lu'
 		elif self.basic_type == 'size_t':
-			self.type_str = 'size_t'
-			self.check_func = 'PyInt_Check'
-			self.convert_func = 'PyInt_AsSsize_t'
+			self.type_str = 'int'
+			self.check_condition = "!PyInt_Check({arg_name}) && !PyLong_Check({arg_name})"
+			self.convert_code = \
+"""if (PyInt_Check({arg_name})) {result_name}{result_suffix} = {cast}(size_t)PyInt_AsSsize_t({arg_name});
+	else if (PyLong_Check({arg_name})) {result_name}{result_suffix} = {cast}(size_t)PyLong_AsSsize_t({arg_name});
+"""
 			self.fmt_str = 'n'
 			self.cfmt_str = '%lu'
-		elif self.basic_type in ['float', 'double']:
+		elif self.basic_type == 'float':
 			self.type_str = 'float'
-			self.check_func = 'PyFloat_Check'
-			self.convert_func = 'PyFloat_AsDouble'
-			if self.basic_type == 'float':
-				self.fmt_str = 'f'
-			elif self.basic_type == 'double':
-				self.fmt_str = 'd'
+			self.check_condition = "!PyFloat_Check({arg_name})"
+			self.convert_code = \
+"""if (PyInt_Check({arg_name})) {result_name}{result_suffix} = {cast}(float)PyInt_AsLong({arg_name});
+	else if (PyLong_Check({arg_name})) {result_name}{result_suffix} = {cast}(float)PyLong_AsLong({arg_name});
+	else if (PyFloat_Check({arg_name})) {result_name}{result_suffix} = {cast}(float)PyFloat_AsDouble({arg_name});
+"""
+			self.fmt_str = 'f'
+			self.cfmt_str = '%f'
+		elif self.basic_type == 'double':
+			self.type_str = 'float'
+			self.check_condition = "!PyFloat_Check({arg_name})"
+			self.convert_code = \
+"""if (PyInt_Check({arg_name})) {result_name}{result_suffix} = {cast}(double)PyInt_AsLong({arg_name});
+	else if (PyLong_Check({arg_name})) {result_name}{result_suffix} = {cast}(double)PyLong_AsLong({arg_name});
+	else if (PyFloat_Check({arg_name})) {result_name}{result_suffix} = {cast}(double)PyFloat_AsDouble({arg_name});
+"""
+			self.fmt_str = 'd'
 			self.cfmt_str = '%f'
 		elif self.basic_type == 'bool_t':
 			self.type_str = 'bool'
-			self.check_func = 'PyBool_Check'
-			self.convert_func = 'PyObject_IsTrue'
+			self.check_condition = "!PyBool_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyObject_IsTrue({arg_name});\n"
 			self.convert_from_func = 'PyBool_FromLong'
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
 			self.cnativefmt_str = '%u'
 		elif self.basic_type == 'time_t':
 			self.type_str = 'DateTime'
-			self.check_func = 'PyDateTime_Check'
-			self.convert_func = 'PyDateTime_As_time_t'
+			self.check_condition = "!PyDateTime_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyDateTime_As_time_t({arg_name});\n"
 			self.convert_from_func = 'PyDateTime_From_time_t'
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
 			self.cnativefmt_str = '%ld'
 		elif self.basic_type == 'MSList':
 			self.type_str = 'list of linphone.' + self.contained_type
-			self.check_func = 'PyList_Check'
-			self.convert_func = 'PyList_AsMSListOf' + self.contained_type
+			self.check_condition = "!PyList_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyList_AsMSListOf" + self.contained_type + "({arg_name});\n"
 			self.convert_from_func = 'PyList_FromMSListOf' + self.contained_type
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
 		elif self.basic_type == 'MSVideoSize':
 			self.type_str = 'linphone.VideoSize'
-			self.check_func = 'PyLinphoneVideoSize_Check'
-			self.convert_func = 'PyLinphoneVideoSize_AsMSVideoSize'
+			self.check_condition = "!PyLinphoneVideoSize_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyLinphoneVideoSize_AsMSVideoSize({arg_name});\n"
 			self.convert_from_func = 'PyLinphoneVideoSize_FromMSVideoSize'
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
 			self.cast_convert_func_result = False
 		elif self.basic_type == 'LCSipTransports':
 			self.type_str = 'linphone.SipTransports'
-			self.check_func = 'PyLinphoneSipTransports_Check'
-			self.convert_func = 'PyLinphoneSipTransports_AsLCSipTransports'
+			self.check_condition = "!PyLinphoneSipTransports_Check({arg_name})"
+			self.convert_code = "{result_name}{result_suffix} = {cast}PyLinphoneSipTransports_AsLCSipTransports({arg_name});\n"
 			self.convert_from_func = 'PyLinphoneSipTransports_FromLCSipTransports'
 			self.fmt_str = 'O'
 			self.cfmt_str = '%p'
@@ -205,13 +236,13 @@ class ArgumentType:
 		else:
 			if strip_leading_linphone(self.basic_type) in self.linphone_module.enum_names:
 				self.type_str = 'int'
-				self.check_func = 'PyInt_Check'
-				self.convert_func = 'PyInt_AsLong'
+				self.check_condition = "!PyInt_Check({arg_name})"
+				self.convert_code = "{result_name}{result_suffix} = {cast}PyInt_AsLong({arg_name});\n"
 				self.fmt_str = 'i'
 				self.cfmt_str = '%d'
 			elif is_callback(self.complete_type):
 				self.type_str = 'callable'
-				self.check_func = 'PyCallable_Check'
+				self.check_condition = "!PyCallable_Check({arg_name})"
 				self.cnativefmt_str = None
 			elif '*' in splitted_type:
 				self.type_str = 'linphone.' + strip_leading_linphone(self.basic_type)
@@ -253,7 +284,7 @@ class MethodDefinition:
 			elif argument_type.fmt_str == 'O' and argument_type.use_native_pointer:
 				body += "\tPyObject * " + arg_name + ";\n"
 				body += "\t" + arg_complete_type + " " + arg_name + "_native_ptr = NULL;\n"
-			elif argument_type.fmt_str == 'O' and argument_type.convert_func is not None:
+			elif argument_type.fmt_str == 'O' and argument_type.convert_code is not None:
 				body += "\tPyObject * " + arg_name + ";\n"
 				body += "\t" + arg_complete_type + " " + arg_name + "_native_obj;\n"
 			elif strip_leading_linphone(arg_complete_type) in self.linphone_module.enum_names:
@@ -281,10 +312,8 @@ class MethodDefinition:
 			arg_complete_type = xml_method_arg.get('completetype')
 			arg_contained_type = xml_method_arg.get('containedtype')
 			argument_type = ArgumentType(arg_type, arg_complete_type, arg_contained_type, self.linphone_module)
-			if argument_type.fmt_str == 'O' and argument_type.convert_func is not None:
-				args_conversion_code += \
-"""	{arg_name}_native_obj = {convert_func}({arg_name});
-""".format(arg_name=arg_name, convert_func=argument_type.convert_func)
+			if argument_type.fmt_str == 'O' and argument_type.convert_code is not None:
+				args_conversion_code += argument_type.convert_code.format(result_name=arg_name, result_suffix='_native_obj', cast='', arg_name=arg_name)
 		return \
 """	{class_native_ptr_check_code}
 	{parse_tuple_code}
@@ -335,7 +364,7 @@ class MethodDefinition:
 			argument_type = ArgumentType(arg_type, arg_complete_type, arg_contained_type, self.linphone_module)
 			if argument_type.fmt_str == 'O' and argument_type.use_native_pointer:
 				arg_names.append(arg_name + "_native_ptr")
-			elif argument_type.fmt_str == 'O' and argument_type.convert_func is not None:
+			elif argument_type.fmt_str == 'O' and argument_type.convert_code is not None:
 				arg_names.append(arg_name + "_native_obj")
 			else:
 				arg_names.append(arg_name)
@@ -353,6 +382,7 @@ class MethodDefinition:
 		from_native_pointer_code = ''
 		convert_from_code = ''
 		build_value_code = ''
+		cfree_code = ''
 		result_variable = ''
 		if self.return_complete_type != 'void':
 			if self.build_value_format == 'O':
@@ -371,16 +401,20 @@ class MethodDefinition:
 				result_variable = 'cresult'
 		if result_variable != '':
 			build_value_code = "pyret = Py_BuildValue(\"{fmt}\", {result_variable});".format(fmt=self.build_value_format, result_variable=result_variable)
+		if self.return_complete_type == 'char *':
+			cfree_code = 'ms_free(cresult);';
 		body = \
 """	{c_function_call_code}
 	pylinphone_dispatch_messages();
 	{from_native_pointer_code}
 	{convert_from_code}
 	{build_value_code}
+	{cfree_code}
 """.format(c_function_call_code=c_function_call_code,
 		from_native_pointer_code=from_native_pointer_code,
 		convert_from_code=convert_from_code,
-		build_value_code=build_value_code)
+		build_value_code=build_value_code,
+		cfree_code=cfree_code)
 		return body
 
 	def format_return_trace(self):
@@ -427,11 +461,11 @@ class MethodDefinition:
 """.format(arg_name=arg_name, arg_type=strip_leading_linphone(arg_type), type_str=argument_type.type_str)
 				else:
 					body += \
-"""	if (!{check_func}({arg_name})) {{
+"""	if ({check_condition}) {{
 		PyErr_SetString(PyExc_TypeError, "The '{arg_name}' argument must be a {type_str} instance.");
 		return NULL;
 	}}
-""".format(arg_name=arg_name, check_func=argument_type.check_func, type_str=argument_type.type_str)
+""".format(arg_name=arg_name, check_condition=argument_type.check_condition.format(arg_name=arg_name), type_str=argument_type.type_str)
 		if body != '':
 			body = body[1:] # Remove leading '\t'
 		return body
@@ -474,7 +508,6 @@ class MethodDefinition:
 			if self.build_value_format == 'O':
 				body += "\tPyObject * pyresult;\n"
 			body += "\tPyObject * pyret;\n"
-			body += "\tconst char *pyret_fmt;\n"
 		return body
 
 	def parse_method_node(self):
@@ -674,7 +707,7 @@ class SetterMethodDefinition(MethodDefinition):
 		MethodDefinition.__init__(self, linphone_module, class_, method_node)
 
 	def format_arguments_parsing(self):
-		if self.first_argument_type.check_func is None:
+		if self.first_argument_type.check_condition is None:
 			attribute_type_check_code = \
 """if ((value != Py_None) && !PyObject_IsInstance(value, (PyObject *)&pylinphone_{class_name}Type)) {{
 		PyErr_SetString(PyExc_TypeError, "The '{attribute_name}' attribute value must be a linphone.{class_name} instance.");
@@ -686,11 +719,11 @@ class SetterMethodDefinition(MethodDefinition):
 			if self.first_argument_type.type_str == 'string':
 				checknotnone = "(value != Py_None) && "
 			attribute_type_check_code = \
-"""if ({checknotnone}!{checkfunc}(value)) {{
+"""if ({checknotnone}{check_condition}) {{
 		PyErr_SetString(PyExc_TypeError, "The '{attribute_name}' attribute value must be a {type_str}.");
 		return -1;
 	}}
-""".format(checknotnone=checknotnone, checkfunc=self.first_argument_type.check_func, attribute_name=self.attribute_name, type_str=self.first_argument_type.type_str)
+""".format(checknotnone=checknotnone, check_condition=self.first_argument_type.check_condition.format(arg_name='value'), attribute_name=self.attribute_name, type_str=self.first_argument_type.type_str)
 		attribute_conversion_code = ''
 		callback_setting_code = ''
 		if is_callback(self.first_argument_type.complete_type):
@@ -699,18 +732,17 @@ class SetterMethodDefinition(MethodDefinition):
 	Py_INCREF(value);
 	((pylinphone_{class_name}Object *)self)->{callback_name} = value;
 """.format(class_name=self.class_['class_name'], callback_name=compute_event_name(self.first_arg_complete_type, self.class_['class_name']))
-		if (self.first_argument_type.convert_func is None) or \
-			(self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_func is not None):
+		if (self.first_argument_type.convert_code is None) or \
+			(self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_code is not None):
 			attribute_conversion_code += "{arg_name} = value;\n".format(arg_name="_" + self.first_arg_name)
-		if self.first_argument_type.convert_func is not None:
+		if self.first_argument_type.convert_code is not None:
 			cast_code = ''
 			suffix = ''
 			if self.first_argument_type.cast_convert_func_result:
 				cast_code = "({arg_type})".format(arg_type=self.first_arg_complete_type)
-			if self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_func is not None:
+			if self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_code is not None:
 				suffix = '_native_obj'
-			attribute_conversion_code += "\t{arg_name}{suffix} = {cast_code}{convertfunc}(value);\n".format(
-				arg_name="_" + self.first_arg_name, suffix=suffix, cast_code=cast_code, convertfunc=self.first_argument_type.convert_func)
+			attribute_conversion_code += self.first_argument_type.convert_code.format(result_name="_" + self.first_arg_name, result_suffix=suffix, cast=cast_code, arg_name='value')
 		attribute_native_ptr_check_code = ''
 		if self.first_argument_type.use_native_pointer:
 			attribute_native_ptr_check_code = \
@@ -747,7 +779,7 @@ class SetterMethodDefinition(MethodDefinition):
 		suffix = ''
 		if self.first_argument_type.fmt_str == 'O' and self.first_argument_type.use_native_pointer:
 			suffix = '_native_ptr'
-		elif self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_func is not None:
+		elif self.first_argument_type.fmt_str == 'O' and self.first_argument_type.convert_code is not None:
 			suffix = '_native_obj'
 		return \
 """	{method_name}(native_ptr, {arg_name}{suffix});
@@ -877,7 +909,7 @@ class EventCallbackMethodDefinition(MethodDefinition):
 """.format(class_name=strip_leading_linphone(self.return_type))
 
 			else:
-				convert_python_result_code = "\t\tcresult = {convertfunc}(pyresult);\n".format(convertfunc=argument_type.convert_func)			
+				convert_python_result_code = '\t\t' + argument_type.convert_code.format(result_name='cresult', result_suffix='', cast='', arg_name='pyresult')
 		return \
 """	if ((func != NULL) && PyCallable_Check(func)) {{
 {create_python_objects_code}
@@ -937,6 +969,7 @@ class LinphoneModule(object):
 		self.mslist_types = Set([])
 		self.enums = []
 		self.enum_names = []
+		self.cfunction2methodmap = {}
 		hand_written_functions = []
 		for hand_written_code in hand_written_codes:
 			hand_written_functions += hand_written_code.func_list
@@ -947,18 +980,35 @@ class LinphoneModule(object):
 			e = {}
 			e['enum_name'] = strip_leading_linphone(xml_enum.get('name'))
 			e['enum_doc'] = self.__format_doc_content(xml_enum.find('briefdescription'), xml_enum.find('detaileddescription'))
-			e['enum_doc'] += "\n\nValues:\n"
+			e['enum_doc'] = self.__replace_doc_special_chars(e['enum_doc'])
+			e['enum_doc'] += """
+
+.. csv-table::
+   :delim: |
+   :widths: 30, 70
+   :header: Value,Description
+
+"""
 			e['enum_values'] = []
+			e['enum_deprecated_values'] = []
 			xml_enum_values = xml_enum.findall("./values/value")
 			for xml_enum_value in xml_enum_values:
 				if xml_enum_value.get('deprecated') == 'true':
 					continue
 				v = {}
 				v['enum_value_cname'] = xml_enum_value.get('name')
-				v['enum_value_name'] = strip_leading_linphone(v['enum_value_cname'])
+				valname = strip_leading_linphone(v['enum_value_cname'])
+				v['enum_value_name'] = remove_useless_enum_prefix(e['enum_name'], valname)
 				v['enum_value_doc'] = self.__format_doc(xml_enum_value.find('briefdescription'), xml_enum_value.find('detaileddescription'))
-				e['enum_doc'] += '\t' + v['enum_value_name'] + ': ' + v['enum_value_doc'] + '\n'
+				e['enum_doc'] += '   ' + v['enum_value_name'] + '|' + v['enum_value_doc'] + '\n'
 				e['enum_values'].append(v)
+				if v['enum_value_name'] != valname:
+					# TODO: To remove. Add deprecated value name.
+					v = {}
+					v['enum_value_cname'] = xml_enum_value.get('name')
+					v['enum_value_name'] = strip_leading_linphone(v['enum_value_cname'])
+					v['enum_value_doc'] = self.__format_doc(xml_enum_value.find('briefdescription'), xml_enum_value.find('detaileddescription'))
+					e['enum_deprecated_values'].append(v)
 			e['enum_doc'] = self.__replace_doc_special_chars(e['enum_doc'])
 			self.enums.append(e)
 			self.enum_names.append(e['enum_name'])
@@ -1012,10 +1062,12 @@ class LinphoneModule(object):
 					if isinstance(hand_written_code, HandWrittenClassMethod):
 						m = {}
 						m['method_name'] = hand_written_code.name
+						m['method_doc'] = self.__replace_doc_special_chars(hand_written_code.doc)
 						c['class_type_hand_written_methods'].append(m)
 					elif isinstance(hand_written_code, HandWrittenInstanceMethod):
 						m = {}
 						m['method_name'] = hand_written_code.name
+						m['method_doc'] = self.__replace_doc_special_chars(hand_written_code.doc)
 						c['class_instance_hand_written_methods'].append(m)
 					elif isinstance(hand_written_code, HandWrittenProperty):
 						p = {}
@@ -1028,6 +1080,7 @@ class LinphoneModule(object):
 							p['setter_reference'] = 'NULL'
 						else:
 							p['setter_reference'] = '(setter)pylinphone_' + c['class_name'] + '_set_' + p['property_name']
+						p['property_doc'] = self.__replace_doc_special_chars(hand_written_code.doc)
 						c['class_hand_written_properties'].append(p)
 			xml_type_methods = xml_class.findall("./classmethods/classmethod")
 			for xml_type_method in xml_type_methods:
@@ -1040,6 +1093,7 @@ class LinphoneModule(object):
 				m['method_name'] = method_name.replace(c['class_c_function_prefix'], '')
 				if method_name not in hand_written_functions:
 					m['method_xml_node'] = xml_type_method
+					self.cfunction2methodmap[method_name] = ':py:meth:`linphone.' + c['class_name'] + '.' + m['method_name'] + '`'
 					c['class_type_methods'].append(m)
 			c['class_instance_methods'] = []
 			xml_instance_methods = xml_class.findall("./instancemethods/instancemethod")
@@ -1055,6 +1109,7 @@ class LinphoneModule(object):
 				m['method_name'] = method_name.replace(c['class_c_function_prefix'], '')
 				if method_name not in hand_written_functions:
 					m['method_xml_node'] = xml_instance_method
+					self.cfunction2methodmap[method_name] = ':py:meth:`linphone.' + c['class_name'] + '.' + m['method_name'] + '`'
 					c['class_instance_methods'].append(m)
 			c['class_properties'] = []
 			xml_properties = xml_class.findall("./properties/property")
@@ -1081,6 +1136,7 @@ class LinphoneModule(object):
 					p['getter_reference'] = "(getter)pylinphone_" + c['class_name'] + "_" + p['getter_name']
 					p['getter_definition_begin'] = "static PyObject * pylinphone_" + c['class_name'] + "_" + p['getter_name'] + "(PyObject *self, void *closure) {"
 					p['getter_definition_end'] = "}"
+					self.cfunction2methodmap[xml_property_getter.get('name')] = ':py:attr:`linphone.' + c['class_name'] + '.' + property_name + '`'
 				else:
 					p['getter_reference'] = "NULL"
 				if xml_property_setter is not None:
@@ -1090,6 +1146,7 @@ class LinphoneModule(object):
 					p['setter_reference'] = "(setter)pylinphone_" + c['class_name'] + "_" + p['setter_name']
 					p['setter_definition_begin'] = "static int pylinphone_" + c['class_name'] + "_" + p['setter_name'] + "(PyObject *self, PyObject *value, void *closure) {"
 					p['setter_definition_end'] = "}"
+					self.cfunction2methodmap[xml_property_setter.get('name')] = ':py:attr:`linphone.' + c['class_name'] + '.' + property_name + '`'
 				else:
 					p['setter_reference'] = "NULL"
 				c['class_properties'].append(p)
@@ -1209,8 +1266,20 @@ class LinphoneModule(object):
 	def __replace_doc_special_chars(self, doc):
 		return doc.replace('"', '').encode('string-escape')
 
+	def __replace_doc_cfunction_by_method(self, doc):
+		for cfunction, method in self.cfunction2methodmap.iteritems():
+			doc = doc.replace(cfunction + '()', method)
+		for cfunction, method in self.cfunction2methodmap.iteritems():
+			doc = doc.replace(cfunction, method)
+		return doc
+
+	def __replace_doc_keywords(self, doc):
+		return doc.replace('NULL', 'None')
+
 	def __format_doc(self, brief_description, detailed_description):
 		doc = self.__format_doc_content(brief_description, detailed_description)
+		doc = self.__replace_doc_cfunction_by_method(doc)
+		doc = self.__replace_doc_keywords(doc)
 		doc = self.__replace_doc_special_chars(doc)
 		return doc
 
@@ -1243,6 +1312,8 @@ class LinphoneModule(object):
 				return_argument_type = ArgumentType(return_type, return_complete_type, return_contained_type, self)
 				doc += '\n:returns: ' + return_doc
 				doc += '\n:rtype: ' + return_argument_type.type_str
+		doc = self.__replace_doc_cfunction_by_method(doc)
+		doc = self.__replace_doc_keywords(doc)
 		doc = self.__replace_doc_special_chars(doc)
 		return doc
 
@@ -1254,6 +1325,8 @@ class LinphoneModule(object):
 		argument_type = ArgumentType(arg_type, arg_complete_type, arg_contained_type, self)
 		doc = self.__format_doc_content(xml_node.find('briefdescription'), xml_node.find('detaileddescription'))
 		doc = '[' + argument_type.type_str + '] ' + doc
+		doc = self.__replace_doc_cfunction_by_method(doc)
+		doc = self.__replace_doc_keywords(doc)
 		doc = self.__replace_doc_special_chars(doc)
 		return doc
 
@@ -1265,5 +1338,7 @@ class LinphoneModule(object):
 		return_argument_type = ArgumentType(return_type, return_complete_type, return_contained_type, self)
 		doc = self.__format_doc_content(xml_node.find('briefdescription'), xml_node.find('detaileddescription'))
 		doc = '[' + return_argument_type.type_str + '] ' + doc
+		doc = self.__replace_doc_cfunction_by_method(doc)
+		doc = self.__replace_doc_keywords(doc)
 		doc = self.__replace_doc_special_chars(doc)
 		return doc
