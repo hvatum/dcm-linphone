@@ -128,6 +128,75 @@ static PyObject * pylinphone_module_method_set_log_handler(PyObject *self, PyObj
 }
 
 
+static PyObject * pylinphone_Core_get_sip_transports(PyObject *self, void *closure) {
+    PyObject *pytr;
+    LCSipTransports tr = { 0 };
+    LinphoneCore *native_ptr = pylinphone_Core_get_native_ptr(self);
+
+    if (native_ptr == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Invalid linphone.Core instance");
+        return NULL;
+    }
+
+    pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p [%p])", __FUNCTION__, self, native_ptr);
+    linphone_core_get_sip_transports(native_ptr, &tr);
+    pylinphone_dispatch_messages();
+
+    pytr = PyLinphoneSipTransports_FromLCSipTransports(tr);
+    pylinphone_trace(-1, "[PYLINPHONE] <<< %s -> %p", __FUNCTION__, pytr);
+    return pytr;
+}
+
+static int pylinphone_Core_set_sip_transports(PyObject *self, PyObject *value, void *closure) {
+    LinphoneCore *native_ptr;
+    PyObject * _tr_config;
+    const LCSipTransports * _tr_config_native_obj;
+    native_ptr = pylinphone_Core_get_native_ptr(self);
+    if (native_ptr == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Invalid linphone.Core instance");
+        return -1;
+    }
+
+    if (value == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Cannot delete the 'sip_transports' attribute.");
+        return -1;
+    }
+    if (!PyLinphoneSipTransports_Check(value)) {
+        PyErr_SetString(PyExc_TypeError, "The 'sip_transports' attribute value must be a linphone.SipTransports.");
+        return -1;
+    }
+
+    _tr_config = value;
+    _tr_config_native_obj = PyLinphoneSipTransports_AsLCSipTransports(value);
+
+    pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p [%p], %p [%p])", __FUNCTION__, self, native_ptr, _tr_config, _tr_config_native_obj);
+    linphone_core_set_sip_transports(native_ptr, _tr_config_native_obj);
+    pylinphone_dispatch_messages();
+    pylinphone_trace(-1, "[PYLINPHONE] <<< %s -> 0", __FUNCTION__);
+    return 0;
+}
+
+static PyObject * pylinphone_Core_get_sip_transports_used(PyObject *self, void *closure) {
+    PyObject *pytr;
+    LCSipTransports tr = { 0 };
+    LinphoneCore *native_ptr = pylinphone_Core_get_native_ptr(self);
+
+    if (native_ptr == NULL) {
+        PyErr_SetString(PyExc_TypeError, "Invalid linphone.Core instance");
+        return NULL;
+    }
+
+    pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p [%p])", __FUNCTION__, self, native_ptr);
+    linphone_core_get_sip_transports_used(native_ptr, &tr);
+    pylinphone_dispatch_messages();
+
+    pytr = PyLinphoneSipTransports_FromLCSipTransports(tr);
+    pylinphone_trace(-1, "[PYLINPHONE] <<< %s -> %p", __FUNCTION__, pytr);
+    return pytr;
+}
+
+
+
 static PyObject * pylinphone_Core_get_sound_devices(PyObject *self, void *closure) {
 	PyObject *_list;
 	const char **_devices;
@@ -178,6 +247,13 @@ static PyObject * pylinphone_Core_get_video_devices(PyObject *self, void *closur
 	return _list;
 }
 
+static void pylinphone_init_ms2_plugins(void) {
+	ms_init(); // Initialize mediastreamer2 before loading the plugins
+#ifdef ENABLE_OPENH264
+	libmsopenh264_init();
+#endif
+}
+
 static PyObject * pylinphone_Core_class_method_new(PyObject *cls, PyObject *args) {
 	LinphoneCore * cresult;
 	pylinphone_CoreObject *self;
@@ -206,6 +282,7 @@ static PyObject * pylinphone_Core_class_method_new(PyObject *cls, PyObject *args
 {{/core_events}}
 
 	pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p, \"%s\", \"%s\")", __FUNCTION__, _vtable_dict, _config_path, _factory_config_path);
+	pylinphone_init_ms2_plugins();
 	cresult = linphone_core_new(&_vtable, _config_path, _factory_config_path, self);
 	self->native_ptr = cresult;
 
@@ -248,6 +325,7 @@ static PyObject * pylinphone_Core_class_method_new_with_config(PyObject *cls, Py
 {{/core_events}}
 
 	pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p [%p])", __FUNCTION__, _config, _config_native_ptr);
+	pylinphone_init_ms2_plugins();
 	cresult = linphone_core_new_with_config(&_vtable, _config_native_ptr, self);
 	self->native_ptr = cresult;
 
@@ -256,6 +334,24 @@ static PyObject * pylinphone_Core_class_method_new_with_config(PyObject *cls, Py
 	pylinphone_trace(-1, "[PYLINPHONE] <<< %s -> %p", __FUNCTION__, pyret);
 	Py_DECREF(self);
 	return pyret;
+}
+
+static void pylinphone_Core_dealloc(PyObject *self) {
+	LinphoneCore * native_ptr = pylinphone_Core_get_native_ptr(self);
+	if (Py_REFCNT(self) < 0) return;
+	pylinphone_trace(1, "[PYLINPHONE] >>> %s(%p [%p])", __FUNCTION__, self, native_ptr);
+	
+	if (native_ptr != NULL) {
+		linphone_core_destroy(native_ptr);
+		ms_exit();	// De-initialize mediastreamer
+	}
+
+	pylinphone_dispatch_messages();
+	Py_XDECREF(((pylinphone_CoreObject *)self)->user_data);
+	Py_XDECREF(((pylinphone_CoreObject *)self)->vtable_dict);
+
+	self->ob_type->tp_free(self);
+	pylinphone_trace(-1, "[PYLINPHONE] <<< %s", __FUNCTION__);
 }
 
 

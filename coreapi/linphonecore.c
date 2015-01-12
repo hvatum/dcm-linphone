@@ -2123,7 +2123,7 @@ void linphone_core_set_use_rfc2833_for_dtmf(LinphoneCore *lc,bool_t use_rfc2833)
 /**
  * Returns the UDP port used by SIP.
  *
- * Deprecated: use linphone_core_get_sip_transports() instead.
+ * @deprecated use linphone_core_get_sip_transports() instead.
  * @ingroup network_parameters
 **/
 int linphone_core_get_sip_port(LinphoneCore *lc){
@@ -2291,7 +2291,7 @@ void linphone_core_get_sip_transports_used(LinphoneCore *lc, LCSipTransports *tr
 /**
  * Sets the UDP port to be used by SIP.
  *
- * Deprecated: use linphone_core_set_sip_transports() instead.
+ * @deprecated use linphone_core_set_sip_transports() instead.
  * @ingroup network_parameters
 **/
 void linphone_core_set_sip_port(LinphoneCore *lc,int port)
@@ -5999,7 +5999,7 @@ void linphone_core_set_rtp_transport_factories(LinphoneCore* lc, LinphoneRtpTran
  *
  * @note Remote RTP statistics is not implemented yet.
  *
- * @returns 0 or -1 if no call is running.
+ * @return 0 or -1 if no call is running.
 **/
 
 int linphone_core_get_current_call_stats(LinphoneCore *lc, rtp_stats_t *local, rtp_stats_t *remote){
@@ -6813,7 +6813,7 @@ const char *linphone_media_encryption_to_string(LinphoneMediaEncryption menc){
 bool_t linphone_core_media_encryption_supported(const LinphoneCore *lc, LinphoneMediaEncryption menc){
 	switch(menc){
 		case LinphoneMediaEncryptionSRTP:
-			return media_stream_srtp_supported();
+			return ms_srtp_supported();
 		case LinphoneMediaEncryptionZRTP:
 			return ms_zrtp_available();
 		case LinphoneMediaEncryptionNone:
@@ -6826,7 +6826,7 @@ int linphone_core_set_media_encryption(LinphoneCore *lc, LinphoneMediaEncryption
 	const char *type="none";
 	int ret=0;
 	if (menc == LinphoneMediaEncryptionSRTP){
-		if (!media_stream_srtp_supported()){
+		if (!ms_srtp_supported()){
 			ms_warning("SRTP not supported by library.");
 			type="none";
 			ret=-1;

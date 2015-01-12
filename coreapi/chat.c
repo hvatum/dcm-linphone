@@ -484,7 +484,7 @@ LinphoneChatRoom * linphone_core_create_chat_room(LinphoneCore *lc, const char *
  * Get a chat room whose peer is the supplied address. If it does not exist yet, it will be created.
  * @param lc the linphone core
  * @param addr a linphone address.
- * @returns #LinphoneChatRoom where messaging can take place.
+ * @return #LinphoneChatRoom where messaging can take place.
 **/
 LinphoneChatRoom *linphone_core_get_chat_room(LinphoneCore *lc, const LinphoneAddress *addr){
 	LinphoneChatRoom *ret = _linphone_core_get_chat_room(lc, addr);
@@ -498,7 +498,7 @@ LinphoneChatRoom *linphone_core_get_chat_room(LinphoneCore *lc, const LinphoneAd
  * Get a chat room for messaging from a sip uri like sip:joe@sip.linphone.org. If it does not exist yet, it will be created.
  * @param lc The linphone core
  * @param to The destination address for messages.
- * @returns #LinphoneChatRoom where messaging can take place.
+ * @return #LinphoneChatRoom where messaging can take place.
 **/
 LinphoneChatRoom * linphone_core_get_chat_room_from_uri(LinphoneCore *lc, const char *to) {
 	return _linphone_core_get_or_create_chat_room(lc, to);
@@ -1280,10 +1280,12 @@ static void linphone_chat_process_response_headers_from_get_file(void *data, con
 				(belle_sip_body_handler_t*)belle_sip_user_body_handler_new(body_size, linphone_chat_message_file_transfer_on_progress,on_recv_body,NULL,message)
 			);
 		} else {
-			belle_sip_message_set_body_handler(
-				(belle_sip_message_t *)event->response,
-				(belle_sip_body_handler_t *)belle_sip_file_body_handler_new(message->file_transfer_filepath, linphone_chat_message_file_transfer_on_progress, message)
-			);
+			belle_sip_body_handler_t *bh = (belle_sip_body_handler_t *)belle_sip_file_body_handler_new(message->file_transfer_filepath, linphone_chat_message_file_transfer_on_progress, message);
+			if (belle_sip_body_handler_get_size(bh) == 0) {
+				/* If the size of the body has not been initialized from the file stat, use the one from the file_transfer_information. */
+				belle_sip_body_handler_set_size(bh, body_size);
+			}
+			belle_sip_message_set_body_handler((belle_sip_message_t *)event->response, bh);
 		}
 	}
 }
@@ -1632,6 +1634,7 @@ LinphoneChatMessage* linphone_chat_room_create_file_transfer_message(LinphoneCha
 	msg->callbacks=linphone_chat_message_cbs_new();
 	msg->chat_room=(LinphoneChatRoom*)cr;
 	msg->message = NULL;
+	msg->is_read=TRUE;
 	msg->file_transfer_information = linphone_content_copy(initial_content);
 	msg->dir=LinphoneChatMessageOutgoing;
 	linphone_chat_message_set_to(msg, linphone_chat_room_get_peer_address(cr));
