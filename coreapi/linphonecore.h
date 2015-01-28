@@ -287,7 +287,8 @@ typedef enum _LinphoneAVPFMode  LinphoneAVPFMode;
 enum _LinphoneMediaEncryption {
 	LinphoneMediaEncryptionNone, /**< No media encryption is used */
 	LinphoneMediaEncryptionSRTP, /**< Use SRTP media encryption */
-	LinphoneMediaEncryptionZRTP /**< Use ZRTP media encryption */
+	LinphoneMediaEncryptionZRTP, /**< Use ZRTP media encryption */
+	LinphoneMediaEncryptionDTLS /**< Use DTLS media encryption */
 };
 
 /**
@@ -2277,6 +2278,10 @@ LINPHONE_PUBLIC const MSList *linphone_core_get_video_codecs(const LinphoneCore 
 
 LINPHONE_PUBLIC int linphone_core_set_video_codecs(LinphoneCore *lc, MSList *codecs);
 
+LINPHONE_PUBLIC void linphone_core_enable_generic_confort_noise(LinphoneCore *lc, bool_t enabled);
+
+LINPHONE_PUBLIC bool_t linphone_core_generic_confort_noise_enabled(const LinphoneCore *lc);
+
 /**
  * Tells whether the specified payload type is enabled.
  * @param[in] lc #LinphoneCore object.
@@ -3029,6 +3034,22 @@ LINPHONE_PUBLIC void linphone_core_set_zrtp_secrets_file(LinphoneCore *lc, const
  * @ingroup initializing
  */
 LINPHONE_PUBLIC const char *linphone_core_get_zrtp_secrets_file(LinphoneCore *lc);
+
+/**
+ * Set the path to the directory storing the user's x509 certificates (used by dtls)
+ * @param[in] lc #LinphoneCore object
+ * @param[in] path The path to the directory to use to store the user's certificates.
+ * @ingroup initializing
+ */
+LINPHONE_PUBLIC void linphone_core_set_user_certificates_path(LinphoneCore *lc, const char* path);
+
+/**
+ * Get the path to the directory storing the user's certificates.
+ * @param[in] lc #LinphoneCore object.
+ * @returns The path to the directory storing the user's certificates.
+ * @ingroup initializing
+ */
+LINPHONE_PUBLIC const char *linphone_core_get_user_certificates_path(LinphoneCore *lc);
 
 /**
  * Search from the list of current calls if a remote address match uri
