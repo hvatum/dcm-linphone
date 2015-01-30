@@ -110,6 +110,7 @@ public class LinphoneCoreImpl implements LinphoneCore {
 	private native void setRing(long nativePtr, String path);
 	private native String getRing(long nativePtr);
 	private native void setRootCA(long nativePtr, String path);
+	private native void setRingback(long nativePtr, String path);	
 	private native long[] listVideoPayloadTypes(long nativePtr);
 	private native LinphoneProxyConfig[] getProxyConfigList(long nativePtr);
 	private native long[] getAuthInfosList(long nativePtr);
@@ -517,6 +518,10 @@ public class LinphoneCoreImpl implements LinphoneCore {
 
 	public synchronized void setRootCA(String path) {
 		setRootCA(nativePtr, path);
+	}
+
+	public synchronized void setRingback(String path) {
+		setRingback(nativePtr, path);
 	}
 
 	public synchronized LinphoneProxyConfig[] getProxyConfigList() {
@@ -1330,4 +1335,15 @@ public class LinphoneCoreImpl implements LinphoneCore {
 	 * @param path The path where the log files will be written.
 	 */
 	public native static void setLogCollectionPath(String path);
+	
+	private native void setPreferredFramerate(long nativePtr, float fps);
+	@Override
+	public void setPreferredFramerate(float fps) {
+		setPreferredFramerate(nativePtr,fps);
+	}
+	private native float getPreferredFramerate(long nativePtr);
+	@Override
+	public float getPreferredFramerate() {
+		return getPreferredFramerate(nativePtr);
+	}
 }
