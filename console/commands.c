@@ -200,6 +200,7 @@ static LPC_COMMAND commands[] = {
 		"'ipv6 status' : show ipv6 usage status.\n"
 		"'ipv6 enable' : enable the use of the ipv6 network.\n"
 		"'ipv6 disable' : do not use ipv6 network."
+        },
 	{ "chat", lpc_cmd_chat, "Chat with a SIP uri",
 		"'chat <sip-url> \"message\"' "
 		": send a chat message \"message\" to the specified destination."
