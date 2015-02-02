@@ -397,7 +397,9 @@ LINPHONE_PUBLIC	void linphone_address_set_domain(LinphoneAddress *uri, const cha
 LINPHONE_PUBLIC	void linphone_address_set_port(LinphoneAddress *uri, int port);
 /*remove tags, params etc... so that it is displayable to the user*/
 LINPHONE_PUBLIC	void linphone_address_clean(LinphoneAddress *uri);
-LINPHONE_PUBLIC bool_t linphone_address_is_secure(const LinphoneAddress *uri);
+LINPHONE_PUBLIC bool_t linphone_address_is_secure(const LinphoneAddress *addr);
+LINPHONE_PUBLIC bool_t linphone_address_get_secure(const LinphoneAddress *addr);
+LINPHONE_PUBLIC void linphone_address_set_secure(LinphoneAddress *addr, bool_t enabled);
 LINPHONE_PUBLIC bool_t linphone_address_is_sip(const LinphoneAddress *uri);
 LINPHONE_PUBLIC LinphoneTransportType linphone_address_get_transport(const LinphoneAddress *uri);
 LINPHONE_PUBLIC void linphone_address_set_transport(LinphoneAddress *uri,LinphoneTransportType type);
@@ -756,6 +758,19 @@ LINPHONE_PUBLIC	int linphone_call_send_dtmfs(LinphoneCall *call,char *dtmfs);
  * @param call The LinphoneCall object
 **/
 LINPHONE_PUBLIC	void linphone_call_cancel_dtmfs(LinphoneCall *call);
+
+/**
+ * Get the native window handle of the video window, casted as an unsigned long.
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC unsigned long linphone_call_get_native_video_window_id(const LinphoneCall *call);
+
+/**
+ * Set the native video window id where the video is to be displayed.
+ * For MacOS, Linux, Windows: if not set or 0 a window will be automatically created, unless the special id -1 is given.
+ * @ingroup media_parameters
+**/
+LINPHONE_PUBLIC void linphone_call_set_native_video_window_id(LinphoneCall *call, unsigned long id);
 
 /**
  * Return TRUE if this call is currently part of a conference
