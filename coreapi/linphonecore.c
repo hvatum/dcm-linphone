@@ -947,6 +947,8 @@ static void rtp_config_read(LinphoneCore *lc)
 	int nortp_timeout;
 	bool_t rtp_no_xmit_on_audio_mute;
 	bool_t adaptive_jitt_comp_enabled;
+	const char* tmp;
+	int tmp_int;
 
 	if (lp_config_get_range(lc->config, "rtp", "audio_rtp_port", &min_port, &max_port, 7078, 7078) == TRUE) {
 		if (min_port <= 0) min_port = 1;
@@ -981,6 +983,26 @@ static void rtp_config_read(LinphoneCore *lc)
 	linphone_core_enable_video_adaptive_jittcomp(lc, adaptive_jitt_comp_enabled);
 	lc->rtp_conf.disable_upnp = lp_config_get_int(lc->config, "rtp", "disable_upnp", FALSE);
 	linphone_core_set_avpf_mode(lc,lp_config_get_int(lc->config,"rtp","avpf",0));
+	if ((tmp=lp_config_get_string(lc->config,"rtp","audio_multicast_addr",NULL)))
+		linphone_core_set_audio_multicast_addr(lc,tmp);
+	else
+		lc->rtp_conf.audio_multicast_addr=ms_strdup("224.1.2.3");
+	if ((tmp_int=lp_config_get_int(lc->config,"rtp","audio_multicast_enabled",-1)) >-1)
+		linphone_core_enable_audio_multicast(lc,tmp_int);
+	if ((tmp_int=lp_config_get_int(lc->config,"rtp","audio_multicast_ttl",-1))>0)
+			linphone_core_set_audio_multicast_ttl(lc,tmp_int);
+	else
+		lc->rtp_conf.audio_multicast_ttl=1;/*local network*/
+	if ((tmp=lp_config_get_string(lc->config,"rtp","video_multicast_addr",NULL)))
+		linphone_core_set_video_multicast_addr(lc,tmp);
+	else
+		lc->rtp_conf.video_multicast_addr=ms_strdup("224.1.2.3");
+	if ((tmp_int=lp_config_get_int(lc->config,"rtp","video_multicast_ttl",-1))>-1)
+		linphone_core_set_video_multicast_ttl(lc,tmp_int);
+	else
+		lc->rtp_conf.video_multicast_ttl=1;/*local network*/
+	if ((tmp_int=lp_config_get_int(lc->config,"rtp","video_multicast_enabled",-1)) >0)
+		linphone_core_enable_video_multicast(lc,tmp_int);
 }
 
 static PayloadType * find_payload(const MSList *default_list, const char *mime_type, int clock_rate, int channels, const char *recv_fmtp){
@@ -4389,15 +4411,13 @@ static MSSndCard *get_card_from_string_id(const char *devid, unsigned int cap){
 		}
 	}
 	if (sndcard==NULL) {
-		/* get a card that has read+write capabilities */
-		sndcard=ms_snd_card_manager_get_default_card(ms_snd_card_manager_get());
-		/* otherwise refine to the first card having the right capability*/
-		if (sndcard==NULL){
-			const MSList *elem=ms_snd_card_manager_get_list(ms_snd_card_manager_get());
-			for(;elem!=NULL;elem=elem->next){
-				sndcard=(MSSndCard*)elem->data;
-				if (ms_snd_card_get_capabilities(sndcard) & cap) break;
-			}
+		if ((cap & MS_SND_CARD_CAP_CAPTURE) && (cap & MS_SND_CARD_CAP_PLAYBACK)){
+			sndcard=ms_snd_card_manager_get_default_card(ms_snd_card_manager_get());
+		}else if (cap & MS_SND_CARD_CAP_CAPTURE){
+			sndcard=ms_snd_card_manager_get_default_capture_card(ms_snd_card_manager_get());
+		}
+		else if (cap & MS_SND_CARD_CAP_PLAYBACK){
+			sndcard=ms_snd_card_manager_get_default_playback_card(ms_snd_card_manager_get());
 		}
 		if (sndcard==NULL){/*looks like a bug! take the first one !*/
 			const MSList *elem=ms_snd_card_manager_get_list(ms_snd_card_manager_get());
@@ -6123,6 +6143,8 @@ void rtp_config_uninit(LinphoneCore *lc)
 	lp_config_set_int(lc->config,"rtp","nortp_timeout",config->nortp_timeout);
 	lp_config_set_int(lc->config,"rtp","audio_adaptive_jitt_comp_enabled",config->audio_adaptive_jitt_comp_enabled);
 	lp_config_set_int(lc->config,"rtp","video_adaptive_jitt_comp_enabled",config->video_adaptive_jitt_comp_enabled);
+	ms_free(lc->rtp_conf.audio_multicast_addr);
+	ms_free(lc->rtp_conf.video_multicast_addr);
 	ms_free(config->srtp_suites);
 }
 
@@ -6878,6 +6900,9 @@ void linphone_core_init_default_params(LinphoneCore*lc, LinphoneCallParams *para
 	params->in_conference=FALSE;
 	params->privacy=LinphonePrivacyDefault;
 	params->avpf_enabled=FALSE;
+	params->audio_dir=LinphoneCallParamsMediaDirectionSendRecv;
+	params->video_dir=LinphoneCallParamsMediaDirectionSendRecv;
+	params->real_early_media=lp_config_get_int(lc->config,"misc","real_early_media",FALSE);
 }
 
 void linphone_core_set_device_identifier(LinphoneCore *lc,const char* device_id) {
@@ -7216,3 +7241,113 @@ void linphone_core_remove_listener(LinphoneCore *lc, const LinphoneCoreVTable *v
 	ms_message("Vtable [%p] unregistered on core [%p]",lc,vtable);
 	lc->vtables=ms_list_remove(lc->vtables,(void*)vtable);
 }
+
+int linphone_core_set_audio_multicast_addr(LinphoneCore *lc, const char* ip) {
+	char* new_value;
+	if (ip && !ms_is_multicast(ip)) {
+		ms_error("Cannot set multicast audio addr to core [%p] because [%s] is not multicast",lc,ip);
+		return -1;
+	}
+	new_value = ip?ms_strdup(ip):NULL;
+	if (lc->rtp_conf.audio_multicast_addr) ms_free(lc->rtp_conf.audio_multicast_addr);
+	lp_config_set_string(lc->config,"rtp","audio_multicast_addr",lc->rtp_conf.audio_multicast_addr=new_value);
+	return 0;
+}
+
+int linphone_core_set_video_multicast_addr(LinphoneCore *lc, const char* ip) {
+	char* new_value;
+	if (ip && !ms_is_multicast(ip)) {
+		ms_error("Cannot set multicast video addr to core [%p] because [%s] is not multicast",lc,ip);
+		return -1;
+	}
+	new_value = ip?ms_strdup(ip):NULL;
+	if (lc->rtp_conf.video_multicast_addr) ms_free(lc->rtp_conf.video_multicast_addr);
+	lp_config_set_string(lc->config,"rtp","video_multicast_addr",lc->rtp_conf.video_multicast_addr=new_value);
+	return 0;
+}
+
+const char* linphone_core_get_audio_multicast_addr(const LinphoneCore *lc) {
+	return lc->rtp_conf.audio_multicast_addr;
+}
+
+
+const char* linphone_core_get_video_multicast_addr(const LinphoneCore *lc){
+	return lc->rtp_conf.video_multicast_addr;
+}
+
+int linphone_core_set_audio_multicast_ttl(LinphoneCore *lc, int ttl) {
+	if (ttl>255) {
+		ms_error("Cannot set multicast audio ttl to core [%p] to [%i] value must be <256",lc,ttl);
+		return -1;
+	}
+
+	lp_config_set_int(lc->config,"rtp","audio_multicast_ttl",lc->rtp_conf.audio_multicast_ttl=ttl);
+	return 0;
+}
+
+int linphone_core_set_video_multicast_ttl(LinphoneCore *lc, int ttl) {
+	if (ttl>255) {
+		ms_error("Cannot set multicast video ttl to core [%p] to [%i] value must be <256",lc,ttl);
+		return -1;
+	}
+
+	lp_config_set_int(lc->config,"rtp","video_multicast_ttl",lc->rtp_conf.video_multicast_ttl=ttl);
+	return 0;
+}
+
+int linphone_core_get_audio_multicast_ttl(const LinphoneCore *lc) {
+	return lc->rtp_conf.audio_multicast_ttl;
+}
+
+
+int linphone_core_get_video_multicast_ttl(const LinphoneCore *lc){
+	return lc->rtp_conf.video_multicast_ttl;
+}
+
+void linphone_core_enable_audio_multicast(LinphoneCore *lc, bool_t yesno) {
+	lp_config_set_int(lc->config,"rtp","audio_multicast_enabled",lc->rtp_conf.audio_multicast_enabled=yesno);
+}
+
+ bool_t linphone_core_audio_multicast_enabled(const LinphoneCore *lc) {
+	return lc->rtp_conf.audio_multicast_enabled;
+}
+
+void linphone_core_enable_video_multicast(LinphoneCore *lc, bool_t yesno) {
+	lp_config_set_int(lc->config,"rtp","video_multicast_enabled",lc->rtp_conf.video_multicast_enabled=yesno);
+}
+
+bool_t linphone_core_video_multicast_enabled(const LinphoneCore *lc) {
+	return lc->rtp_conf.video_multicast_enabled;
+}
+
+#ifdef ANDROID
+static int linphone_core_call_void_method(jobject obj, jmethodID id) {
+	JNIEnv *env=ms_get_jni_env();
+		if (env && obj) {
+			(*env)->CallVoidMethod(env,obj,id);
+			if ((*env)->ExceptionCheck(env)) {
+				(*env)->ExceptionClear(env);
+				return -1;
+			} else
+				return 0;
+		} else
+			return -1;
+}
+
+void linphone_core_wifi_lock_acquire(LinphoneCore *lc) {
+	if (linphone_core_call_void_method(lc->wifi_lock,lc->wifi_lock_acquire_id))
+		ms_warning("No wifi lock configured or not usable for core [%p]",lc);
+}
+void linphone_core_wifi_lock_release(LinphoneCore *lc) {
+	if (linphone_core_call_void_method(lc->wifi_lock,lc->wifi_lock_release_id))
+		ms_warning("No wifi lock configured or not usable for core [%p]",lc);
+}
+void linphone_core_multicast_lock_acquire(LinphoneCore *lc) {
+	if (linphone_core_call_void_method(lc->multicast_lock,lc->multicast_lock_acquire_id))
+			ms_warning("No multicast lock configured or not usable for core [%p]",lc);
+}
+void linphone_core_multicast_lock_release(LinphoneCore *lc) {
+	if (linphone_core_call_void_method(lc->multicast_lock,lc->multicast_lock_release_id))
+			ms_warning("No wifi lock configured or not usable for core [%p]",lc);
+}
+#endif

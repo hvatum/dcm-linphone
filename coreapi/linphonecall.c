@@ -538,6 +538,29 @@ static void transfer_already_assigned_payload_types(SalMediaDescription *old, Sa
 	}
 }
 
+static const char *linphone_call_get_bind_ip_for_stream(LinphoneCall *call, int stream_index){
+	const char *bind_ip=call->af==AF_INET6 ? "::0" : "0.0.0.0";
+	
+	if (stream_index<2 && call->media_ports[stream_index].multicast_ip[0]!='\0'){
+		if (call->dir==LinphoneCallOutgoing){
+			 /*as multicast sender, we must decide a local interface to use to send multicast, and bind to it*/
+			bind_ip=call->localip;
+		}else{
+			/*as receiver, just bind to the multicast address*/
+			bind_ip=call->media_ports[stream_index].multicast_ip;
+		}
+	}
+	return bind_ip;
+}
+
+static const char *linphone_call_get_public_ip_for_stream(LinphoneCall *call, int stream_index){
+	const char *public_ip=call->localip;
+	
+	if (stream_index<2 && call->media_ports[stream_index].multicast_ip[0]!='\0') 
+		public_ip=call->media_ports[stream_index].multicast_ip;
+	return public_ip;
+}
+
 void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *call){
 	MSList *l;
 	SalMediaDescription *old_md=call->localdesc;
@@ -546,9 +569,21 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	const char *me;
 	SalMediaDescription *md=sal_media_description_new();
 	LinphoneAddress *addr;
-	char* local_ip=call->localip;
-	const char *subject=linphone_call_params_get_session_name(call->params);
+	const char *subject;
 	CodecConstraints codec_hints={0};
+	
+	/*multicast is only set in case of outgoing call*/
+	if (call->dir == LinphoneCallOutgoing && linphone_core_audio_multicast_enabled(lc)) {
+		md->streams[0].ttl=linphone_core_get_audio_multicast_ttl(lc);
+		md->streams[0].multicast_role = SalMulticastSender;
+	}
+
+	if (call->dir == LinphoneCallOutgoing && linphone_core_video_multicast_enabled(lc)) {
+		md->streams[1].ttl=linphone_core_get_video_multicast_ttl(lc);
+		md->streams[1].multicast_role = SalMulticastSender;
+	}
+
+	subject=linphone_call_params_get_session_name(call->params);
 
 	linphone_core_adapt_to_network(lc,call->ping_time,call->params);
 
@@ -562,7 +597,7 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	md->session_ver=(old_md ? (old_md->session_ver+1) : (rand() & 0xfff));
 	md->nb_streams=(call->biggestdesc ? call->biggestdesc->nb_streams : 1);
 
-	strncpy(md->addr,local_ip,sizeof(md->addr));
+	strncpy(md->addr,call->localip,sizeof(md->addr));
 	strncpy(md->username,linphone_address_get_username(addr),sizeof(md->username));
 	if (subject) strncpy(md->name,subject,sizeof(md->name));
 
@@ -571,8 +606,8 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	else md->bandwidth=linphone_core_get_download_bandwidth(lc);
 
 	/*set audio capabilities */
-	strncpy(md->streams[0].rtp_addr,local_ip,sizeof(md->streams[0].rtp_addr));
-	strncpy(md->streams[0].rtcp_addr,local_ip,sizeof(md->streams[0].rtcp_addr));
+	strncpy(md->streams[0].rtp_addr,linphone_call_get_public_ip_for_stream(call,0),sizeof(md->streams[0].rtp_addr));
+	strncpy(md->streams[0].rtcp_addr,linphone_call_get_public_ip_for_stream(call,0),sizeof(md->streams[0].rtcp_addr));
 	strncpy(md->streams[0].name,"Audio",sizeof(md->streams[0].name)-1);
 	md->streams[0].rtp_port=call->media_ports[0].rtp_port;
 	md->streams[0].rtcp_port=call->media_ports[0].rtcp_port;
@@ -599,8 +634,8 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	nb_active_streams++;
 
 	if (call->params->has_video){
-		strncpy(md->streams[1].rtp_addr,local_ip,sizeof(md->streams[1].rtp_addr));
-		strncpy(md->streams[1].rtcp_addr,local_ip,sizeof(md->streams[1].rtcp_addr));
+		strncpy(md->streams[1].rtp_addr,linphone_call_get_public_ip_for_stream(call,1),sizeof(md->streams[1].rtp_addr));
+		strncpy(md->streams[1].rtcp_addr,linphone_call_get_public_ip_for_stream(call,1),sizeof(md->streams[1].rtcp_addr));
 		strncpy(md->streams[1].name,"Video",sizeof(md->streams[1].name)-1);
 		md->streams[1].rtp_port=call->media_ports[1].rtp_port;
 		md->streams[1].rtcp_port=call->media_ports[1].rtcp_port;
@@ -761,9 +796,26 @@ static void linphone_call_init_common(LinphoneCall *call, LinphoneAddress *from,
 
 	linphone_core_get_video_port_range(call->core, &min_port, &max_port);
 	port_config_set(call,1,min_port,max_port);
+	
+	if (call->dir==LinphoneCallOutgoing){
+		if ( linphone_core_audio_multicast_enabled(call->core)){
+			strncpy(call->media_ports[0].multicast_ip,
+				linphone_core_get_audio_multicast_addr(call->core), sizeof(call->media_ports[0].multicast_ip));
+		}
+		if ( linphone_core_video_multicast_enabled(call->core)){
+			strncpy(call->media_ports[1].multicast_ip,
+				linphone_core_get_video_multicast_addr(call->core), sizeof(call->media_ports[1].multicast_ip));
+		}
+	}
 
 	linphone_call_init_stats(&call->stats[LINPHONE_CALL_STATS_AUDIO], LINPHONE_CALL_STATS_AUDIO);
 	linphone_call_init_stats(&call->stats[LINPHONE_CALL_STATS_VIDEO], LINPHONE_CALL_STATS_VIDEO);
+	
+#ifdef ANDROID
+	ms_message("Call [%p] acquires both wifi and multicast lock",call);
+	linphone_core_wifi_lock_acquire(call->core);
+	linphone_core_multicast_lock_acquire(call->core); /*does no affect battery more than regular rtp traffic*/
+#endif
 }
 
 void linphone_call_init_stats(LinphoneCallStats *stats, int type) {
@@ -918,6 +970,7 @@ static void linphone_call_incoming_select_ip_version(LinphoneCall *call){
  * Fix call parameters on incoming call to eg. enable AVPF if the incoming call propose it and it is not enabled locally.
  */
 void linphone_call_set_compatible_incoming_call_parameters(LinphoneCall *call, const SalMediaDescription *md) {
+	int i;
 	call->params->has_video &= linphone_core_media_description_contains_video_stream(md);
 
 	/* Handle AVPF, SRTP and DTLS. */
@@ -934,6 +987,16 @@ void linphone_call_set_compatible_incoming_call_parameters(LinphoneCall *call, c
 	}
 	if ((sal_media_description_has_srtp(md) == TRUE) && (ms_srtp_supported() == TRUE)) {
 		call->params->media_encryption = LinphoneMediaEncryptionSRTP;
+	}
+
+	/* set both local audio & video multicast ip address if any*/
+	for (i=0;i<2;++i){
+		if (md->streams[i].rtp_addr[i]!='\0' && ms_is_multicast(md->streams[i].rtp_addr)) {
+			strncpy(call->media_ports[i].multicast_ip,md->streams[i].rtp_addr,sizeof(call->media_ports[i].multicast_ip));
+			ms_message("Disabling rtcp on call [%p], stream [%i] because of multicast",call,i);
+			call->media_ports[i].rtp_port=md->streams[i].rtp_port;
+			call->media_ports[i].rtcp_port=0;
+		}
 	}
 }
 
@@ -1294,6 +1357,11 @@ static void linphone_call_destroy(LinphoneCall *obj){
 	}
 
 	sal_error_info_reset(&obj->non_op_error);
+	#ifdef ANDROID
+	ms_message("Call [%p] releases wifi/multicast lock",obj);
+	linphone_core_wifi_lock_release(obj->core);
+	linphone_core_multicast_lock_release(obj->core);
+	#endif
 }
 
 /**
@@ -1760,6 +1828,8 @@ int linphone_call_prepare_ice(LinphoneCall *call, bool_t incoming_offer){
 	return 0;
 }
 
+
+
 void linphone_call_init_audio_stream(LinphoneCall *call){
 	LinphoneCore *lc=call->core;
 	AudioStream *audiostream;
@@ -1767,11 +1837,13 @@ void linphone_call_init_audio_stream(LinphoneCall *call){
 	int dscp;
 	char rtcp_tool[128]={0};
 	char* cname;
+
 	snprintf(rtcp_tool,sizeof(rtcp_tool)-1,"%s-%s",linphone_core_get_user_agent_name(),linphone_core_get_user_agent_version());
 
 	if (call->audiostream != NULL) return;
 	if (call->sessions[0].rtp_session==NULL){
-		call->audiostream=audiostream=audio_stream_new(call->media_ports[0].rtp_port,call->media_ports[0].rtcp_port,call->af==AF_INET6);
+		call->audiostream=audiostream=audio_stream_new2(linphone_call_get_bind_ip_for_stream(call,0),
+				call->media_ports[0].rtp_port, call->media_ports[0].rtcp_port);
 		cname = linphone_address_as_string_uri_only(call->me);
 		audio_stream_set_rtcp_information(call->audiostream, cname, rtcp_tool);
 		ms_free(cname);
@@ -1876,7 +1948,8 @@ void linphone_call_init_video_stream(LinphoneCall *call){
 		const char *display_filter=linphone_core_get_video_display_filter(lc);
 
 		if (call->sessions[1].rtp_session==NULL){
-			call->videostream=video_stream_new(call->media_ports[1].rtp_port,call->media_ports[1].rtcp_port, call->af==AF_INET6);
+			call->videostream=video_stream_new2(linphone_call_get_bind_ip_for_stream(call,1),
+					call->media_ports[1].rtp_port,call->media_ports[1].rtcp_port);
 			cname = linphone_address_as_string_uri_only(call->me);
 			video_stream_set_rtcp_information(call->videostream, cname, rtcp_tool);
 			ms_free(cname);
@@ -2102,6 +2175,8 @@ static int get_video_bw(LinphoneCall *call, const SalMediaDescription *md, const
 	else if (md->bandwidth>0) {
 		/*case where b=AS is given globally, not per stream*/
 		remote_bw=get_remaining_bandwidth_for_video(md->bandwidth,call->audio_bw);
+	} else {
+		remote_bw = lp_config_get_int(call->core->config, "net", "default_max_bandwidth", 1500);
 	}
 	bw=get_min_bandwidth(get_remaining_bandwidth_for_video(linphone_core_get_upload_bandwidth(call->core),call->audio_bw),remote_bw);
 	return bw;
@@ -2242,13 +2317,15 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, bool_t muted, b
 
 	stream = sal_media_description_find_best_stream(call->resultdesc, SalAudio);
 	if (stream && stream->dir!=SalStreamInactive && stream->rtp_port!=0){
+		const char *rtp_addr=stream->rtp_addr[0]!='\0' ? stream->rtp_addr : call->resultdesc->addr;
+		bool_t is_multicast=ms_is_multicast(rtp_addr);
 		playcard=lc->sound_conf.lsd_card ?
 			lc->sound_conf.lsd_card : lc->sound_conf.play_sndcard;
 		captcard=lc->sound_conf.capt_sndcard;
 		playfile=lc->play_file;
 		recfile=lc->rec_file;
 		call->audio_profile=make_profile(call,call->resultdesc,stream,&used_pt);
-
+		
 		if (used_pt!=-1){
 			call->current_params->audio_codec = rtp_profile_get_payload(call->audio_profile, used_pt);
 			if (playcard==NULL) {
@@ -2259,7 +2336,9 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, bool_t muted, b
 			}
 			/*Replace soundcard filters by inactive file players or recorders
 			 when placed in recvonly or sendonly mode*/
-			if (stream->rtp_port==0 || stream->dir==SalStreamRecvOnly){
+			if (stream->rtp_port==0
+					|| stream->dir==SalStreamRecvOnly
+					|| (stream->multicast_role == SalMulticastReceiver && is_multicast)){
 				captcard=NULL;
 				playfile=NULL;
 			}else if (stream->dir==SalStreamSendOnly){
@@ -2315,13 +2394,16 @@ static void linphone_call_start_audio_stream(LinphoneCall *call, bool_t muted, b
 				}
 			}
 			configure_rtp_session_for_rtcp_xr(lc, call, SalAudio);
+			if (is_multicast)
+				rtp_session_set_multicast_ttl(call->audiostream->ms.sessions.rtp_session,stream->ttl);
+			
 			audio_stream_start_full(
 				call->audiostream,
 				call->audio_profile,
-				stream->rtp_addr[0]!='\0' ? stream->rtp_addr : call->resultdesc->addr,
+				rtp_addr,
 				stream->rtp_port,
 				stream->rtcp_addr[0]!='\0' ? stream->rtcp_addr : call->resultdesc->addr,
-				linphone_core_rtcp_enabled(lc) ? (stream->rtcp_port ? stream->rtcp_port : stream->rtp_port+1) : 0,
+				(linphone_core_rtcp_enabled(lc) && !is_multicast) ? (stream->rtcp_port ? stream->rtcp_port : stream->rtp_port+1) : 0,
 				used_pt,
 				linphone_core_get_audio_jittcomp(lc),
 				playfile,
@@ -2373,7 +2455,7 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 		const char *rtp_addr=vstream->rtp_addr[0]!='\0' ? vstream->rtp_addr : call->resultdesc->addr;
 		const char *rtcp_addr=vstream->rtcp_addr[0]!='\0' ? vstream->rtcp_addr : call->resultdesc->addr;
 		const SalStreamDescription *local_st_desc=sal_media_description_find_stream(call->localdesc,vstream->proto,SalVideo);
-
+		bool_t is_multicast=ms_is_multicast(rtp_addr);
 		call->video_profile=make_profile(call,call->resultdesc,vstream,&used_pt);
 
 		if (used_pt!=-1){
@@ -2402,7 +2484,12 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 				video_stream_set_native_preview_window_id (call->videostream,lc->preview_window_id);
 			video_stream_use_preview_video_window (call->videostream,lc->use_preview_window);
 
-			if (vstream->dir==SalStreamSendOnly && lc->video_conf.capture ){
+			if (is_multicast){
+				if (vstream->multicast_role == SalMulticastReceiver)
+					dir=VideoStreamRecvOnly;
+				else
+					dir=VideoStreamSendOnly;
+			} else if (vstream->dir==SalStreamSendOnly && lc->video_conf.capture ){
 				if (local_st_desc->dir==SalStreamSendOnly){
 					/* localdesc stream dir to SendOnly is when we want to put on hold, so use nowebcam in this case*/
 					cam=get_nowebcam_device();
@@ -2440,6 +2527,9 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 				ms_message("%s lc rotation:%d\n", __FUNCTION__, lc->device_rotation);
 				video_stream_set_device_rotation(call->videostream, lc->device_rotation);
 				video_stream_set_freeze_on_error(call->videostream, lp_config_get_int(lc->config, "video", "freeze_on_error", 0));
+				if (is_multicast)
+					rtp_session_set_multicast_ttl(call->videostream->ms.sessions.rtp_session,vstream->ttl);
+
 				if( lc->video_conf.reuse_preview_source && source ){
 					ms_message("video_stream_start_with_source kept: %p", source);
 					video_stream_start_with_source(call->videostream,
@@ -2452,7 +2542,7 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 					video_stream_start(call->videostream,
 									   call->video_profile, rtp_addr, vstream->rtp_port,
 									   rtcp_addr,
-									   linphone_core_rtcp_enabled(lc) ? (vstream->rtcp_port ? vstream->rtcp_port : vstream->rtp_port+1) : 0,
+									   (linphone_core_rtcp_enabled(lc) && !is_multicast)  ? (vstream->rtcp_port ? vstream->rtcp_port : vstream->rtp_port+1) : 0,
 									   used_pt, linphone_core_get_video_jittcomp(lc), cam);
 				}
 			}
@@ -3615,7 +3705,9 @@ unsigned long linphone_call_get_native_video_window_id(const LinphoneCall *call)
 
 void linphone_call_set_native_video_window_id(LinphoneCall *call, unsigned long id) {
 	call->video_window_id = id;
+#ifdef VIDEO_ENABLED
 	if (call->videostream) {
 		video_stream_set_native_window_id(call->videostream, id);
 	}
+#endif
 }

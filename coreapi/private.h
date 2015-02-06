@@ -78,6 +78,9 @@ extern "C" {
 #define ngettext(singular, plural, number)	(((number)==1)?(singular):(plural))
 #endif
 #endif
+#ifdef ANDROID
+#include <jni.h>
+#endif
 
 struct _LinphoneCallParams{
 	belle_sip_object_t base;
@@ -105,6 +108,9 @@ struct _LinphoneCallParams{
 	bool_t no_user_consent;/*when set to TRUE an UPDATE request will be used instead of reINVITE*/
 	uint16_t avpf_rr_interval; /*in milliseconds*/
 	LinphonePrivacyMask privacy;
+	LinphoneCallParamsMediaDirection audio_dir;
+	LinphoneCallParamsMediaDirection video_dir;
+
 };
 
 BELLE_SIP_DECLARE_VPTR(LinphoneCallParams);
@@ -196,6 +202,7 @@ typedef struct StunCandidate{
 
 
 typedef struct _PortConfig{
+	char multicast_ip[LINPHONE_IPADDR_SIZE];
 	int rtp_port;
 	int rtcp_port;
 }PortConfig;
@@ -469,6 +476,7 @@ struct _LinphoneProxyConfig
 	int expires;
 	int publish_expires;
 	SalOp *op;
+	SalCustomHeader *sent_headers;
 	char *type;
 	struct _SipSetupContext *ssctx;
 	int auth_failures;
@@ -589,6 +597,12 @@ typedef struct rtp_config
 	bool_t audio_adaptive_jitt_comp_enabled;
 	bool_t video_adaptive_jitt_comp_enabled;
 	bool_t pad;
+	char* audio_multicast_addr;
+	bool_t audio_multicast_enabled;
+	int audio_multicast_ttl;
+	char* video_multicast_addr;
+	int video_multicast_ttl;
+	bool_t video_multicast_enabled;
 }rtp_config_t;
 
 
@@ -784,6 +798,14 @@ struct _LinphoneCore
 	const char **supported_formats;
 	LinphoneContent *log_collection_upload_information;
 	LinphoneCoreVTable *current_vtable; // the latest vtable to call a callback, see linphone_core_get_current_vtable
+#ifdef ANDROID
+	jobject wifi_lock;
+	jmethodID wifi_lock_acquire_id;
+	jmethodID wifi_lock_release_id;
+	jobject multicast_lock;
+	jmethodID multicast_lock_acquire_id;
+	jmethodID multicast_lock_release_id;
+#endif
 };
 
 
@@ -1079,6 +1101,13 @@ void linphone_core_notify_log_collection_upload_progress_indication(LinphoneCore
 
 void set_mic_gain_db(AudioStream *st, float gain);
 void set_playback_gain_db(AudioStream *st, float gain);
+
+#ifdef ANDROID
+void linphone_core_wifi_lock_acquire(LinphoneCore *lc);
+void linphone_core_wifi_lock_release(LinphoneCore *lc);
+void linphone_core_multicast_lock_acquire(LinphoneCore *lc);
+void linphone_core_multicast_lock_release(LinphoneCore *lc);
+#endif
 
 #ifdef __cplusplus
 }

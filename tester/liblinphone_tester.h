@@ -24,6 +24,9 @@
 
 #include "CUnit/Basic.h"
 #include "linphonecore.h"
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 typedef void (*test_function_t)(void);
 typedef int (*test_suite_function_t)(const char *name);
@@ -63,6 +66,8 @@ extern test_suite_t transport_test_suite;
 extern test_suite_t player_test_suite;
 extern test_suite_t dtmf_test_suite;
 extern test_suite_t offeranswer_test_suite;
+extern test_suite_t video_test_suite;
+extern test_suite_t multicast_call_test_suite;
 
 
 extern int liblinphone_tester_nb_test_suites(void);
@@ -234,6 +239,8 @@ typedef struct _stats {
 	int number_of_rtcp_sent;
 	int number_of_rtcp_received;
 
+	int number_of_video_windows_created;
+
 }stats;
 
 typedef struct _LinphoneCoreManager {
@@ -295,6 +302,7 @@ bool_t call_with_test_params(LinphoneCoreManager* caller_mgr
 bool_t call(LinphoneCoreManager* caller_mgr,LinphoneCoreManager* callee_mgr);
 void end_call(LinphoneCoreManager *m1, LinphoneCoreManager *m2);
 void disable_all_audio_codecs_except_one(LinphoneCore *lc, const char *mime, int rate);
+void disable_all_video_codecs_except_one(LinphoneCore *lc, const char *mime);
 stats * get_stats(LinphoneCore *lc);
 LinphoneCoreManager *get_manager(LinphoneCore *lc);
 const char *liblinphone_tester_get_subscribe_content(void);
@@ -312,7 +320,9 @@ void liblinphone_tester_enable_ipv6(bool_t enabled);
 void cunit_android_trace_handler(int level, const char *fmt, va_list args) ;
 #endif
 int  liblinphone_tester_fprintf(FILE * stream, const char * format, ...);
-
+void linphone_call_cb(LinphoneCall *call,void * user_data);
+void call_paused_resumed_base(bool_t multicast);
+void simple_call_base(bool_t enable_multicast_recv_side);
 void call_base(LinphoneMediaEncryption mode, bool_t enable_video,bool_t enable_relay,LinphoneFirewallPolicy policy,bool_t enable_tunnel);
 #endif /* LIBLINPHONE_TESTER_H_ */
 
