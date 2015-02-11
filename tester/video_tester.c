@@ -121,6 +121,8 @@ static void early_media_video_call_state_changed(LinphoneCore *lc, LinphoneCall 
 		case LinphoneCallIncomingReceived:
 			params = linphone_core_create_default_call_parameters(lc);
 			linphone_call_params_enable_video(params, TRUE);
+			linphone_call_params_set_audio_direction(params, LinphoneMediaDirectionSendOnly);
+			linphone_call_params_set_video_direction(params, LinphoneMediaDirectionRecvOnly);
 			linphone_core_accept_early_media_with_params(lc, call, params);
 			linphone_call_params_unref(params);
 			break;
@@ -257,8 +259,81 @@ static void early_media_video_during_video_call_test(void) {
 	linphone_core_manager_destroy(laure);
 }
 
+static void two_incoming_early_media_video_calls_test(void) {
+	char *ringback_path;
+	LinphoneCoreManager *marie;
+	LinphoneCoreManager *pauline;
+	LinphoneCoreManager *laure;
+	LinphoneCallParams *marie_params;
+	LinphoneCallParams *pauline_params;
+	LinphoneCallParams *laure_params;
+	LinphoneCall *call;
+	const MSList *calls_list;
+
+	marie = linphone_core_manager_new("marie_rc");
+	pauline = linphone_core_manager_new("pauline_rc");
+	laure = linphone_core_manager_new("laure_rc");
+	marie_params = configure_for_early_media_video_receiving(marie);
+	pauline_params = configure_for_early_media_video_sending(pauline);
+	laure_params = configure_for_early_media_video_sending(laure);
+
+	/* Configure early media audio to play ring during early-media and send remote ring back tone. */
+	linphone_core_set_ring_during_incoming_early_media(marie->lc, TRUE);
+	ringback_path = ms_strdup_printf("%s/sounds/ringback.wav", liblinphone_tester_file_prefix);
+	linphone_core_set_remote_ringback_tone(marie->lc, ringback_path);
+	ms_free(ringback_path);
+
+	/* Early media video call from pauline to marie. */
+	CU_ASSERT_TRUE(video_call_with_params(pauline, marie, pauline_params, NULL, FALSE));
+
+	/* Wait for 2s. */
+	wait_for_three_cores(marie->lc, pauline->lc, NULL, 2000);
+
+	/* Early media video call from laure to marie. */
+	CU_ASSERT_TRUE(video_call_with_params(laure, marie, laure_params, NULL, FALSE));
+
+	/* Wait for 2s. */
+	wait_for_three_cores(marie->lc, pauline->lc, laure->lc, 2000);
+
+	CU_ASSERT_EQUAL(linphone_core_get_calls_nb(marie->lc), 2);
+	if (linphone_core_get_calls_nb(marie->lc) == 2) {
+		calls_list = linphone_core_get_calls(marie->lc);
+		call = (LinphoneCall *)ms_list_nth_data(calls_list, 0);
+		CU_ASSERT_PTR_NOT_NULL(call);
+		if (call != NULL) {
+			LinphoneCallParams *params = linphone_call_params_copy(linphone_call_get_current_params(call));
+			linphone_call_params_set_audio_direction(params, LinphoneMediaDirectionSendRecv);
+			linphone_call_params_set_video_direction(params, LinphoneMediaDirectionSendRecv);
+			linphone_core_accept_call_with_params(marie->lc, call, params);
+
+			/* Wait for 5s. */
+			wait_for_three_cores(marie->lc, pauline->lc, laure->lc, 5000);
+		}
+	}
+
+	linphone_core_terminate_all_calls(marie->lc);
+	CU_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallEnd, 1));
+	CU_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallEnd, 1));
+	CU_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &marie->stat.number_of_LinphoneCallReleased, 1));
+	CU_ASSERT_TRUE(wait_for(marie->lc, pauline->lc, &pauline->stat.number_of_LinphoneCallReleased, 1));
+	CU_ASSERT_TRUE(wait_for(marie->lc, laure->lc, &marie->stat.number_of_LinphoneCallEnd, 1));
+	CU_ASSERT_TRUE(wait_for(marie->lc, laure->lc, &laure->stat.number_of_LinphoneCallEnd, 1));
+
+	CU_ASSERT_EQUAL(marie->stat.number_of_video_windows_created, 2);
+	CU_ASSERT_EQUAL(pauline->stat.number_of_video_windows_created, 1);
+	CU_ASSERT_EQUAL(laure->stat.number_of_video_windows_created, 1);
+
+	linphone_call_params_unref(marie_params);
+	linphone_call_params_unref(pauline_params);
+	linphone_call_params_unref(laure_params);
+	linphone_core_manager_destroy(marie);
+	linphone_core_manager_destroy(pauline);
+	linphone_core_manager_destroy(laure);
+}
+
 test_t video_tests[] = {
-	{ "Early-media video during video call", early_media_video_during_video_call_test }
+	{ "Early-media video during video call", early_media_video_during_video_call_test },
+	{ "Two incoming early-media video calls", two_incoming_early_media_video_calls_test }
 };
 
 test_suite_t video_test_suite = {

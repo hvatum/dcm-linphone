@@ -36,7 +36,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.MulticastLock;
 import android.net.wifi.WifiManager.WifiLock;
 
-public class LinphoneCoreImpl implements LinphoneCore {
+class LinphoneCoreImpl implements LinphoneCore {
 
 	private final  LinphoneCoreListener mListener; //to make sure to keep a reference on this object
 	protected long nativePtr = 0;
@@ -150,6 +150,8 @@ public class LinphoneCoreImpl implements LinphoneCore {
 	private native void setVideoPortRange(long nativePtr, int minPort, int maxPort);
 	private native void setIncomingTimeout(long nativePtr, int timeout);
 	private native void setInCallTimeout(long nativePtr, int timeout);
+	private native void setPrimaryContact2(long nativePtr, String contact);
+	private native String getPrimaryContact(long nativePtr);
 	private native void setPrimaryContact(long nativePtr, String displayName, String username);
 	private native String getPrimaryContactUsername(long nativePtr);
 	private native String getPrimaryContactDisplayName(long nativePtr);
@@ -977,6 +979,14 @@ public class LinphoneCoreImpl implements LinphoneCore {
 		setMicrophoneGain(nativePtr, gain);
 	}
 
+	public synchronized void setPrimaryContact(String address) {
+		setPrimaryContact2(nativePtr, address);
+	}
+
+	public synchronized String getPrimaryContact() {
+		return getPrimaryContact(nativePtr);
+	}
+
 	public synchronized void setPrimaryContact(String displayName, String username) {
 		setPrimaryContact(nativePtr, displayName, username);
 	}
@@ -1342,17 +1352,6 @@ public class LinphoneCoreImpl implements LinphoneCore {
 	public void uploadLogCollection() {
 		uploadLogCollection(nativePtr);
 	}
-	
-	/**
-	 * Enable the linphone core log collection to upload logs on a server.
-	 */
-	public native static void enableLogCollection(boolean enable);
-
-	/**
-	 * Set the path where the log files will be written for log collection.
-	 * @param path The path where the log files will be written.
-	 */
-	public native static void setLogCollectionPath(String path);
 	
 	private native void setPreferredFramerate(long nativePtr, float fps);
 	@Override

@@ -1075,6 +1075,7 @@ static bool_t get_codec(LinphoneCore *lc, SalStreamType type, int index, Payload
 		pt->mime_type=ortp_strdup(mime);
 		pt->clock_rate=rate;
 		pt->channels=channels;
+		payload_type_set_number(pt,-1); /*dynamic assignment*/
 		payload_type_set_recv_fmtp(pt,fmtp);
 		*default_list=ms_list_append(*default_list, pt);
 	}
@@ -3258,7 +3259,6 @@ void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call){
 	char *tmp;
 	LinphoneAddress *from_parsed;
 	bool_t propose_early_media=lp_config_get_int(lc->config,"sip","incoming_calls_early_media",FALSE);
-	const char *ringback_tone=linphone_core_get_remote_ringback_tone (lc);
 
 	from_parsed=linphone_address_new(sal_op_get_from(call->op));
 	linphone_address_clean(from_parsed);
@@ -3293,12 +3293,18 @@ void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call){
 	}
 
 	linphone_call_set_state(call,LinphoneCallIncomingReceived,"Incoming call");
+	/*from now on, the application is aware of the call and supposed to take background task or already submitted notification to the user.
+	We can then drop our background task.*/
+	if (call->bg_task_id!=0) {
+		sal_end_background_task(call->bg_task_id);
+		call->bg_task_id=0;
+	}
 
 	if (call->state==LinphoneCallIncomingReceived){
 		/*try to be best-effort in giving real local or routable contact address for 100Rel case*/
 		linphone_call_set_contact_op(call);
 
-		if (propose_early_media || ringback_tone!=NULL){
+		if (propose_early_media){
 			linphone_core_accept_early_media(lc,call);
 		}else sal_call_notify_ringing(call->op,FALSE);
 
@@ -3582,7 +3588,7 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 		return 0;
 	}
 	if (params==NULL){
-		call->params->has_video=lc->video_policy.automatically_accept || call->current_params->has_video;
+		linphone_call_params_enable_video(call->params, lc->video_policy.automatically_accept || call->current_params->has_video);
 	}else
 		linphone_call_set_new_params(call,params);
 
@@ -6500,9 +6506,6 @@ int linphone_core_del_call( LinphoneCore *lc, LinphoneCall *call)
 	return 0;
 }
 
-/**
- * Specifies a ring back tone to be played to far end during incoming calls.
-**/
 void linphone_core_set_remote_ringback_tone(LinphoneCore *lc, const char *file){
 	if (lc->sound_conf.ringback_tone){
 		ms_free(lc->sound_conf.ringback_tone);
@@ -6512,11 +6515,16 @@ void linphone_core_set_remote_ringback_tone(LinphoneCore *lc, const char *file){
 		lc->sound_conf.ringback_tone=ms_strdup(file);
 }
 
-/**
- * Returns the ring back tone played to far end during incoming calls.
-**/
 const char *linphone_core_get_remote_ringback_tone(const LinphoneCore *lc){
 	return lc->sound_conf.ringback_tone;
+}
+
+void linphone_core_set_ring_during_incoming_early_media(LinphoneCore *lc, bool_t enable) {
+	lp_config_set_int(lc->config, "sound", "ring_during_incoming_early_media", (int)enable);
+}
+
+bool_t linphone_core_get_ring_during_incoming_early_media(const LinphoneCore *lc) {
+	return (bool_t)lp_config_get_int(lc->config, "sound", "ring_during_incoming_early_media", 0);
 }
 
 LinphonePayloadType* linphone_core_find_payload_type(LinphoneCore* lc, const char* type, int rate, int channels) {
@@ -6900,8 +6908,8 @@ void linphone_core_init_default_params(LinphoneCore*lc, LinphoneCallParams *para
 	params->in_conference=FALSE;
 	params->privacy=LinphonePrivacyDefault;
 	params->avpf_enabled=FALSE;
-	params->audio_dir=LinphoneCallParamsMediaDirectionSendRecv;
-	params->video_dir=LinphoneCallParamsMediaDirectionSendRecv;
+	params->audio_dir=LinphoneMediaDirectionSendRecv;
+	params->video_dir=LinphoneMediaDirectionSendRecv;
 	params->real_early_media=lp_config_get_int(lc->config,"misc","real_early_media",FALSE);
 }
 
