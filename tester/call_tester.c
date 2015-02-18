@@ -2182,7 +2182,7 @@ static void call_with_file_player(void) {
 	}
 
 	/* This assert should be modified to be at least as long as the hello8000.wav file */
-	CU_ASSERT_TRUE(wait_for_until(pauline->lc,marie->lc,&marie->stat.number_of_player_eof,1,30000));
+	CU_ASSERT_TRUE(wait_for_until(pauline->lc,marie->lc,&marie->stat.number_of_player_eof,1,23000));
 
 	/*just to sleep*/
 	linphone_core_terminate_all_calls(marie->lc);
@@ -3072,7 +3072,7 @@ static void multiple_early_media(void) {
 	marie2_call=linphone_core_get_current_call(marie2->lc);
 
 	/*wait a bit that streams are established*/
-	wait_for_list(lcs,&dummy,1,3000);
+	wait_for_list(lcs,&dummy,1,6000);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(pauline_call)->download_bandwidth>70);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(marie1_call)->download_bandwidth>70);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(marie2_call)->download_bandwidth>70);
@@ -3085,18 +3085,18 @@ static void multiple_early_media(void) {
 	CU_ASSERT_TRUE(wait_for_list(lcs,&marie2->stat.number_of_LinphoneCallEnd,1,1000));
 
 	/*wait a bit that streams are established*/
-	wait_for_list(lcs,&dummy,1,1000);
+	wait_for_list(lcs,&dummy,1,3000);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(pauline_call)->download_bandwidth>71);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(marie1_call)->download_bandwidth>71);
 
 	/*send an INFO in reverse side to check that dialogs are properly established*/
 	info=linphone_core_create_info_message(marie1->lc);
 	linphone_call_send_info_message(marie1_call,info);
-	CU_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_inforeceived,1,2000));
+	CU_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_inforeceived,1,3000));
 
 	linphone_core_terminate_all_calls(pauline->lc);
-	CU_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,2000));
-	CU_ASSERT_TRUE(wait_for_list(lcs,&marie1->stat.number_of_LinphoneCallEnd,1,2000));
+	CU_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,3000));
+	CU_ASSERT_TRUE(wait_for_list(lcs,&marie1->stat.number_of_LinphoneCallEnd,1,3000));
 
 	ms_list_free(lcs);
 	linphone_core_manager_destroy(marie1);
@@ -3272,7 +3272,7 @@ static void call_with_in_dialog_codec_change_base(bool_t no_sdp) {
 	CU_ASSERT_TRUE(wait_for(marie->lc,pauline->lc,&pauline->stat.number_of_LinphoneCallUpdatedByRemote,1));
 	CU_ASSERT_TRUE(wait_for(marie->lc,pauline->lc,&pauline->stat.number_of_LinphoneCallStreamsRunning,2));
 	CU_ASSERT_STRING_EQUAL("PCMA",linphone_payload_type_get_mime_type(linphone_call_params_get_used_audio_codec(linphone_call_get_current_params(linphone_core_get_current_call(marie->lc)))));
-	wait_for_until(marie->lc, pauline->lc, &dummy, 1, 3000);
+	wait_for_until(marie->lc, pauline->lc, &dummy, 1, 5000);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(linphone_core_get_current_call(marie->lc))->download_bandwidth>70);
 	CU_ASSERT_TRUE(linphone_call_get_audio_stats(linphone_core_get_current_call(pauline->lc))->download_bandwidth>70);
 
