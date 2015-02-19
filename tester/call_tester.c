@@ -178,6 +178,14 @@ void liblinphone_tester_check_rtcp(LinphoneCoreManager* caller, LinphoneCoreMana
 	linphone_call_unref(c2);
 }
 
+static void setup_sdp_handling(const LinphoneCallTestParams* params, LinphoneCoreManager* mgr ){
+	if( params->sdp_removal ){
+		sal_default_set_sdp_handling(mgr->lc->sal, SalOpSDPSimulateRemove);
+	} else if( params->sdp_simulate_error ){
+		sal_default_set_sdp_handling(mgr->lc->sal, SalOpSDPSimulateError);
+	}
+}
+
 bool_t call_with_params2(LinphoneCoreManager* caller_mgr
 						,LinphoneCoreManager* callee_mgr
 						, const LinphoneCallTestParams *caller_test_params
@@ -189,10 +197,10 @@ bool_t call_with_params2(LinphoneCoreManager* caller_mgr
 	bool_t result=FALSE;
 	LinphoneCallParams *caller_params = caller_test_params->base;
 	LinphoneCallParams *callee_params = callee_test_params->base;
-	bool_t did_received_call;
+	bool_t did_receive_call;
 
-	sal_default_enable_sdp_removal(caller_mgr->lc->sal, caller_test_params->sdp_removal);
-	sal_default_enable_sdp_removal(callee_mgr->lc->sal, callee_test_params->sdp_removal);
+	setup_sdp_handling(caller_test_params, caller_mgr);
+	setup_sdp_handling(callee_test_params, callee_mgr);
 
 	if (!caller_params){
 		CU_ASSERT_PTR_NOT_NULL(linphone_core_invite_address(caller_mgr->lc,callee_mgr->identity));
@@ -200,16 +208,16 @@ bool_t call_with_params2(LinphoneCoreManager* caller_mgr
 		CU_ASSERT_PTR_NOT_NULL(linphone_core_invite_address_with_params(caller_mgr->lc,callee_mgr->identity,caller_params));
 	}
 
-	did_received_call = wait_for(callee_mgr->lc
+	did_receive_call = wait_for(callee_mgr->lc
 				,caller_mgr->lc
 				,&callee_mgr->stat.number_of_LinphoneCallIncomingReceived
 				,initial_callee.number_of_LinphoneCallIncomingReceived+1);
-	CU_ASSERT_EQUAL(did_received_call, !callee_test_params->sdp_removal);
+	CU_ASSERT_EQUAL(did_receive_call, !callee_test_params->sdp_simulate_error);
 
-	sal_default_enable_sdp_removal(caller_mgr->lc->sal, FALSE);
-	sal_default_enable_sdp_removal(callee_mgr->lc->sal, FALSE);
+	sal_default_set_sdp_handling(caller_mgr->lc->sal, SalOpSDPNormal);
+	sal_default_set_sdp_handling(callee_mgr->lc->sal, SalOpSDPNormal);
 
-	if (!did_received_call) return 0;
+	if (!did_receive_call) return 0;
 
 
 	CU_ASSERT_TRUE(linphone_core_inc_invite_pending(callee_mgr->lc));
@@ -913,7 +921,7 @@ static void call_with_no_sdp_ack_without_sdp(void){
 	CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneCallIncomingReceived,1));
 	call=linphone_core_get_current_call(pauline->lc);
 	if (call){
-		sal_call_enable_sdp_removal(call->op, TRUE); /*this will have the effect that the SDP received in the ACK will be ignored*/
+		sal_call_set_sdp_handling(call->op, SalOpSDPSimulateError); /*this will have the effect that the SDP received in the ACK will be ignored*/
 		linphone_core_accept_call(pauline->lc, call);
 		CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&pauline->stat.number_of_LinphoneCallError,1));
 		CU_ASSERT_TRUE(wait_for(pauline->lc,marie->lc,&marie->stat.number_of_LinphoneCallEnd,1));
@@ -3366,12 +3374,12 @@ static void call_log_from_taken_from_p_asserted_id(void) {
 	linphone_core_manager_destroy(pauline);
 }
 
-static void incoming_invite_without_sdp()  {
+static void incoming_invite_with_invalid_sdp() {
 	LinphoneCoreManager* caller = linphone_core_manager_new( "pauline_rc");
 	LinphoneCoreManager* callee = linphone_core_manager_new( "marie_rc");
 	LinphoneCallTestParams caller_test_params = {0}, callee_test_params = {0};
 
-	callee_test_params.sdp_removal = TRUE;
+	callee_test_params.sdp_simulate_error = TRUE;
 	CU_ASSERT_FALSE(call_with_params2(caller,callee,&caller_test_params, &callee_test_params, FALSE));
 
 	CU_ASSERT_PTR_NULL(linphone_core_get_current_call(callee->lc));
@@ -3383,12 +3391,12 @@ static void incoming_invite_without_sdp()  {
 	linphone_core_manager_destroy(caller);
 }
 
-static void outgoing_invite_without_sdp()  {
+static void outgoing_invite_with_invalid_sdp() {
 	LinphoneCoreManager* caller = linphone_core_manager_new( "pauline_rc");
 	LinphoneCoreManager* callee = linphone_core_manager_new( "marie_rc");
 	LinphoneCallTestParams caller_test_params = {0}, callee_test_params = {0};
 
-	caller_test_params.sdp_removal = TRUE;
+	caller_test_params.sdp_simulate_error = TRUE;
 	CU_ASSERT_FALSE(call_with_params2(caller,callee,&caller_test_params, &callee_test_params, FALSE));
 
 	CU_ASSERT_PTR_NULL(linphone_core_get_current_call(callee->lc));
@@ -3402,7 +3410,7 @@ static void outgoing_invite_without_sdp()  {
 	linphone_core_manager_destroy(caller);
 }
 
-static void incoming_reinvite_without_ack_sdp()  {
+static void incoming_reinvite_with_invalid_ack_sdp(){
 #ifdef VIDEO_ENABLED
 	LinphoneCoreManager* caller = linphone_core_manager_new( "pauline_rc");
 	LinphoneCoreManager* callee = linphone_core_manager_new( "marie_rc");
@@ -3415,8 +3423,8 @@ static void incoming_reinvite_without_ack_sdp()  {
 		const LinphoneCallParams *caller_params;
 		stats initial_caller_stat=caller->stat;
 		stats initial_callee_stat=callee->stat;
-		sal_call_enable_sdp_removal(inc_call->op, TRUE);
- 		CU_ASSERT_PTR_NOT_NULL(setup_video(caller, callee));
+		sal_call_set_sdp_handling(inc_call->op, SalOpSDPSimulateError); /* will force a parse error for the ACK SDP*/
+		CU_ASSERT_PTR_NOT_NULL(setup_video(caller, callee));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&callee->stat.number_of_LinphoneCallUpdating,initial_callee_stat.number_of_LinphoneCallUpdating+1));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&callee->stat.number_of_LinphoneCallStreamsRunning,initial_callee_stat.number_of_LinphoneCallStreamsRunning+1));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&caller->stat.number_of_LinphoneCallStreamsRunning,initial_caller_stat.number_of_LinphoneCallStreamsRunning));
@@ -3431,7 +3439,7 @@ static void incoming_reinvite_without_ack_sdp()  {
 		caller_params = linphone_call_get_current_params(linphone_core_get_current_call(caller->lc));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,(int*)&caller_params->has_video,FALSE));
 
-		sal_call_enable_sdp_removal(inc_call->op, FALSE);
+		sal_call_set_sdp_handling(inc_call->op, SalOpSDPNormal);
 	}
 	linphone_core_terminate_all_calls(caller->lc);
 	CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&caller->stat.number_of_LinphoneCallEnd,1));
@@ -3444,7 +3452,7 @@ static void incoming_reinvite_without_ack_sdp()  {
 #endif
 }
 
-static void outgoing_reinvite_without_ack_sdp()  {
+static void outgoing_reinvite_with_invalid_ack_sdp()  {
 #ifdef VIDEO_ENABLED
 	LinphoneCoreManager* caller = linphone_core_manager_new( "pauline_rc");
 	LinphoneCoreManager* callee = linphone_core_manager_new( "marie_rc");
@@ -3456,8 +3464,8 @@ static void outgoing_reinvite_without_ack_sdp()  {
 	if (out_call) {
 		stats initial_caller_stat=caller->stat;
 		stats initial_callee_stat=callee->stat;
-		sal_call_enable_sdp_removal(out_call->op, TRUE);
- 		CU_ASSERT_PTR_NOT_NULL(setup_video(caller, callee));
+		sal_call_set_sdp_handling(out_call->op, SalOpSDPSimulateError); /* will force a parse error for the ACK SDP*/
+		CU_ASSERT_PTR_NOT_NULL(setup_video(caller, callee));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&callee->stat.number_of_LinphoneCallUpdating,initial_callee_stat.number_of_LinphoneCallUpdating+1));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&callee->stat.number_of_LinphoneCallStreamsRunning,initial_callee_stat.number_of_LinphoneCallStreamsRunning+1));
 		CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&caller->stat.number_of_LinphoneCallStreamsRunning,initial_caller_stat.number_of_LinphoneCallStreamsRunning));
@@ -3470,7 +3478,7 @@ static void outgoing_reinvite_without_ack_sdp()  {
 		CU_ASSERT_FALSE(linphone_call_params_video_enabled(linphone_call_get_current_params(linphone_core_get_current_call(callee->lc))));
 		CU_ASSERT_FALSE(linphone_call_params_video_enabled(linphone_call_get_current_params(linphone_core_get_current_call(caller->lc))));
 
-		sal_call_enable_sdp_removal(out_call->op, FALSE);
+		sal_call_set_sdp_handling(out_call->op, SalOpSDPNormal);
 	}
 	linphone_core_terminate_all_calls(caller->lc);
 	CU_ASSERT_TRUE(wait_for(caller->lc,callee->lc,&caller->stat.number_of_LinphoneCallEnd,1));
@@ -3541,6 +3549,77 @@ static void call_with_paused_no_sdp_on_resume() {
 	}
 }
 
+
+static void call_with_early_media_and_no_sdp_in_200(){
+LinphoneCoreManager* marie   = linphone_core_manager_new("marie_rc");
+	LinphoneCoreManager* pauline = linphone_core_manager_new("pauline_rc");
+	MSList* lcs = NULL;
+	LinphoneCall* marie_call;
+	LinphoneCallParams* params = NULL;
+	LinphoneCallLog *marie_call_log;
+	uint64_t connected_time=0;
+	uint64_t ended_time=0;
+	int dummy=0;
+
+	lcs = ms_list_append(lcs,marie->lc);
+	lcs = ms_list_append(lcs,pauline->lc);
+	/*
+		Marie calls Pauline, and after the call has rung, transitions to an early_media session
+	*/
+	params = linphone_core_create_default_call_parameters(marie->lc);
+	linphone_call_params_enable_video(params, TRUE);
+
+	linphone_core_enable_video_capture(pauline->lc, TRUE);
+	linphone_core_enable_video_display(pauline->lc, TRUE);
+	linphone_core_enable_video_capture(marie->lc, TRUE);
+	linphone_core_enable_video_display(marie->lc, FALSE);
+
+	marie_call = linphone_core_invite_address_with_params(marie->lc, pauline->identity, params);
+	marie_call_log = linphone_call_get_call_log(marie_call);
+
+	CU_ASSERT_TRUE(wait_for_list(lcs, &pauline->stat.number_of_LinphoneCallIncomingReceived,1,3000));
+	CU_ASSERT_TRUE(wait_for_list(lcs, &marie->stat.number_of_LinphoneCallOutgoingRinging,1,1000));
+
+	if (linphone_core_inc_invite_pending(pauline->lc)) {
+		LinphoneCall* pauline_call = linphone_core_get_current_call(pauline->lc);
+
+		/* send a 183 to initiate the early media */
+		linphone_core_accept_early_media(pauline->lc, pauline_call);
+
+		CU_ASSERT_TRUE( wait_for_list(lcs, &pauline->stat.number_of_LinphoneCallIncomingEarlyMedia,1,2000) );
+		CU_ASSERT_TRUE( wait_for_list(lcs, &marie->stat.number_of_LinphoneCallOutgoingEarlyMedia,1,2000) );
+
+		liblinphone_tester_check_rtcp(marie, pauline);
+
+		/* will send the 200OK _without_ SDP. We expect the early-media SDP to be used instead */
+		sal_call_set_sdp_handling(pauline_call->op, SalOpSDPSimulateRemove);
+		linphone_core_accept_call(pauline->lc, pauline_call);
+
+		CU_ASSERT_TRUE(wait_for_list(lcs, &marie->stat.number_of_LinphoneCallConnected, 1,1000));
+		connected_time=ms_get_cur_time_ms();
+		CU_ASSERT_TRUE(wait_for_list(lcs, &marie->stat.number_of_LinphoneCallStreamsRunning, 1,3000));
+
+		ms_error("Streams running= %d", marie->stat.number_of_LinphoneCallStreamsRunning);
+
+		CU_ASSERT_EQUAL(marie_call, linphone_core_get_current_call(marie->lc));
+
+		liblinphone_tester_check_rtcp(marie, pauline);
+		/*just to have a call duration !=0*/
+		wait_for_list(lcs,&dummy,1,2000);
+
+		linphone_core_terminate_all_calls(pauline->lc);
+
+		CU_ASSERT_TRUE(wait_for_list(lcs,&pauline->stat.number_of_LinphoneCallEnd,1,1000));
+		CU_ASSERT_TRUE(wait_for_list(lcs,&marie->stat.number_of_LinphoneCallEnd,1,1000));
+		ended_time=ms_get_cur_time_ms();
+		CU_ASSERT_TRUE( labs((linphone_call_log_get_duration(marie_call_log)*1000) - (int64_t)(ended_time - connected_time)) <=1000 );
+		ms_list_free(lcs);
+	}
+
+	linphone_core_manager_destroy(marie);
+	linphone_core_manager_destroy(pauline);
+}
+
 static void call_with_generic_cn(void) {
 	int begin;
 	int leaked_objects;
@@ -3576,18 +3655,18 @@ static void call_with_generic_cn(void) {
 		CU_ASSERT_TRUE(rtps->packet_recv<=300 && rtps->packet_recv>=200);
 	}
 	end_call(marie,pauline);
-	
+
 	if (pauline_call){
 		struct stat stbuf;
 		int err;
-		
+
 		err=stat(recorded_file,&stbuf);
 		CU_ASSERT_EQUAL(err, 0);
 		if (err==0){
 			CU_ASSERT_TRUE(stbuf.st_size>120000);
 		}
 	}
-	
+
 	linphone_core_manager_destroy(marie);
 	linphone_core_manager_destroy(pauline);
 
@@ -3696,12 +3775,13 @@ test_t call_tests[] = {
 	{ "Call with in-dialog codec change", call_with_in_dialog_codec_change },
 	{ "Call with in-dialog codec change no sdp", call_with_in_dialog_codec_change_no_sdp },
 	{ "Call with pause no SDP on resume", call_with_paused_no_sdp_on_resume },
+	{ "Call with early media and no SDP on 200 Ok", call_with_early_media_and_no_sdp_in_200 },
 	{ "Call with custom supported tags", call_with_custom_supported_tags },
 	{ "Call log from taken from asserted id",call_log_from_taken_from_p_asserted_id},
-	{ "Incoming INVITE without SDP",incoming_invite_without_sdp},
-	{ "Outgoing INVITE without ACK SDP",outgoing_invite_without_sdp},
-	{ "Incoming REINVITE without SDP",incoming_reinvite_without_ack_sdp},
-	{ "Outgoing REINVITE without ACK SDP",outgoing_reinvite_without_ack_sdp},
+	{ "Incoming INVITE with invalid SDP",incoming_invite_with_invalid_sdp},
+	{ "Outgoing INVITE with invalid ACK SDP",outgoing_invite_with_invalid_sdp},
+	{ "Incoming REINVITE with invalid SDP in ACK",incoming_reinvite_with_invalid_ack_sdp},
+	{ "Outgoing REINVITE with invalid SDP in ACK",outgoing_reinvite_with_invalid_ack_sdp},
 	{ "Call with generic CN", call_with_generic_cn }
 };
 
