@@ -200,9 +200,9 @@ LINPHONE_PUBLIC int linphone_error_info_get_protocol_code(const LinphoneErrorInf
 
 /* linphone dictionary */
 LINPHONE_PUBLIC	LinphoneDictionary* linphone_dictionary_new(void);
-LinphoneDictionary * linphone_dictionary_clone(const LinphoneDictionary* src);
-LinphoneDictionary * linphone_dictionary_ref(LinphoneDictionary* obj);
-void linphone_dictionary_unref(LinphoneDictionary* obj);
+LINPHONE_PUBLIC LinphoneDictionary * linphone_dictionary_clone(const LinphoneDictionary* src);
+LINPHONE_PUBLIC LinphoneDictionary * linphone_dictionary_ref(LinphoneDictionary* obj);
+LINPHONE_PUBLIC void linphone_dictionary_unref(LinphoneDictionary* obj);
 LINPHONE_PUBLIC void linphone_dictionary_set_int(LinphoneDictionary* obj, const char* key, int value);
 LINPHONE_PUBLIC int linphone_dictionary_get_int(LinphoneDictionary* obj, const char* key, int default_value);
 LINPHONE_PUBLIC void linphone_dictionary_set_string(LinphoneDictionary* obj, const char* key, const char*value);
@@ -218,14 +218,14 @@ LINPHONE_PUBLIC void linphone_dictionary_foreach( const LinphoneDictionary* obj,
  * @return a #LinphoneDictionary with all the keys from a section, or NULL if the section doesn't exist
  * @ingroup misc
  */
-LinphoneDictionary* lp_config_section_to_dict( const LpConfig* lpconfig, const char* section );
+LINPHONE_PUBLIC LinphoneDictionary* lp_config_section_to_dict( const LpConfig* lpconfig, const char* section );
 
 /**
  * Loads a dictionary into a section of the lpconfig. If the section doesn't exist it is created.
  * Overwrites existing keys, creates non-existing keys.
  * @ingroup misc
  */
-void lp_config_load_dict_to_section( LpConfig* lpconfig, const char* section, const LinphoneDictionary* dict);
+LINPHONE_PUBLIC void lp_config_load_dict_to_section( LpConfig* lpconfig, const char* section, const LinphoneDictionary* dict);
 
 
 /**
@@ -583,15 +583,15 @@ typedef struct _LinphonePlayer LinphonePlayer;
 **/
 typedef void (*LinphonePlayerEofCallback)(struct _LinphonePlayer *obj, void *user_data);
 
-int linphone_player_open(LinphonePlayer *obj, const char *filename, LinphonePlayerEofCallback, void *user_data);
-int linphone_player_start(LinphonePlayer *obj);
-int linphone_player_pause(LinphonePlayer *obj);
-int linphone_player_seek(LinphonePlayer *obj, int time_ms);
-MSPlayerState linphone_player_get_state(LinphonePlayer *obj);
-int linphone_player_get_duration(LinphonePlayer *obj);
-int linphone_player_get_current_position(LinphonePlayer *obj);
-void linphone_player_close(LinphonePlayer *obj);
-void linphone_player_destroy(LinphonePlayer *obj);
+LINPHONE_PUBLIC int linphone_player_open(LinphonePlayer *obj, const char *filename, LinphonePlayerEofCallback, void *user_data);
+LINPHONE_PUBLIC int linphone_player_start(LinphonePlayer *obj);
+LINPHONE_PUBLIC int linphone_player_pause(LinphonePlayer *obj);
+LINPHONE_PUBLIC int linphone_player_seek(LinphonePlayer *obj, int time_ms);
+LINPHONE_PUBLIC MSPlayerState linphone_player_get_state(LinphonePlayer *obj);
+LINPHONE_PUBLIC int linphone_player_get_duration(LinphonePlayer *obj);
+LINPHONE_PUBLIC int linphone_player_get_current_position(LinphonePlayer *obj);
+LINPHONE_PUBLIC void linphone_player_close(LinphonePlayer *obj);
+LINPHONE_PUBLIC void linphone_player_destroy(LinphonePlayer *obj);
 
 /**
  * @brief Create an independent media file player.
@@ -1062,7 +1062,7 @@ LINPHONE_PUBLIC const char* linphone_proxy_config_get_transport(const LinphonePr
 /* destruction is called automatically when removing the proxy config */
 LINPHONE_PUBLIC void linphone_proxy_config_destroy(LinphoneProxyConfig *cfg);
 LINPHONE_PUBLIC void linphone_proxy_config_set_sip_setup(LinphoneProxyConfig *cfg, const char *type);
-SipSetupContext *linphone_proxy_config_get_sip_setup_context(LinphoneProxyConfig *cfg);
+LINPHONE_PUBLIC SipSetupContext *linphone_proxy_config_get_sip_setup_context(LinphoneProxyConfig *cfg);
 LINPHONE_PUBLIC SipSetup *linphone_proxy_config_get_sip_setup(LinphoneProxyConfig *cfg);
 
 /**
@@ -1186,19 +1186,19 @@ typedef struct _LinphoneAccountCreator{
 	bool_t succeeded;
 }LinphoneAccountCreator;
 
-LinphoneAccountCreator *linphone_account_creator_new(LinphoneCore *core, const char *type);
-void linphone_account_creator_set_username(LinphoneAccountCreator *obj, const char *username);
-void linphone_account_creator_set_password(LinphoneAccountCreator *obj, const char *password);
-void linphone_account_creator_set_domain(LinphoneAccountCreator *obj, const char *domain);
-void linphone_account_creator_set_route(LinphoneAccountCreator *obj, const char *route);
-void linphone_account_creator_set_email(LinphoneAccountCreator *obj, const char *email);
-void linphone_account_creator_set_suscribe(LinphoneAccountCreator *obj, int suscribre);
-const char * linphone_account_creator_get_username(LinphoneAccountCreator *obj);
-const char * linphone_account_creator_get_domain(LinphoneAccountCreator *obj);
-int linphone_account_creator_test_existence(LinphoneAccountCreator *obj);
-int linphone_account_creator_test_validation(LinphoneAccountCreator *obj);
-LinphoneProxyConfig * linphone_account_creator_validate(LinphoneAccountCreator *obj);
-void linphone_account_creator_destroy(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC LinphoneAccountCreator *linphone_account_creator_new(LinphoneCore *core, const char *type);
+LINPHONE_PUBLIC void linphone_account_creator_set_username(LinphoneAccountCreator *obj, const char *username);
+LINPHONE_PUBLIC void linphone_account_creator_set_password(LinphoneAccountCreator *obj, const char *password);
+LINPHONE_PUBLIC void linphone_account_creator_set_domain(LinphoneAccountCreator *obj, const char *domain);
+LINPHONE_PUBLIC void linphone_account_creator_set_route(LinphoneAccountCreator *obj, const char *route);
+LINPHONE_PUBLIC void linphone_account_creator_set_email(LinphoneAccountCreator *obj, const char *email);
+LINPHONE_PUBLIC void linphone_account_creator_set_suscribe(LinphoneAccountCreator *obj, int suscribre);
+LINPHONE_PUBLIC const char * linphone_account_creator_get_username(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC const char * linphone_account_creator_get_domain(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC int linphone_account_creator_test_existence(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC int linphone_account_creator_test_validation(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC LinphoneProxyConfig * linphone_account_creator_validate(LinphoneAccountCreator *obj);
+LINPHONE_PUBLIC void linphone_account_creator_destroy(LinphoneAccountCreator *obj);
 
 struct _LinphoneAuthInfo;
 
@@ -1890,7 +1890,7 @@ typedef struct _LinphoneCoreVTable{
 	LinphoneCoreNetworkReachableCb network_reachable; /**< Callback to report IP network status (I.E up/down )*/
 	LinphoneCoreLogCollectionUploadStateChangedCb log_collection_upload_state_changed; /**< Callback to upload collected logs */
 	LinphoneCoreLogCollectionUploadProgressIndicationCb log_collection_upload_progress_indication; /**< Callback to indicate log collection upload progress */
-	void *user_data;
+	void *user_data; /**<User data associated with the above callbacks */
 } LinphoneCoreVTable;
 
 /**
@@ -2249,6 +2249,9 @@ LINPHONE_PUBLIC	const char * linphone_core_get_identity(LinphoneCore *lc);
 LINPHONE_PUBLIC void linphone_core_set_guess_hostname(LinphoneCore *lc, bool_t val);
 LINPHONE_PUBLIC bool_t linphone_core_get_guess_hostname(LinphoneCore *lc);
 
+LINPHONE_PUBLIC void linphone_core_enable_lime(LinphoneCore *lc, bool_t val);
+LINPHONE_PUBLIC bool_t linphone_core_lime_enabled(const LinphoneCore *lc);
+
 LINPHONE_PUBLIC	bool_t linphone_core_ipv6_enabled(LinphoneCore *lc);
 LINPHONE_PUBLIC	void linphone_core_enable_ipv6(LinphoneCore *lc, bool_t val);
 
@@ -2423,7 +2426,7 @@ LINPHONE_PUBLIC	const MSList *linphone_core_get_proxy_config_list(const Linphone
 /** @deprecated Use linphone_core_set_default_proxy_config() instead. */
 #define linphone_core_set_default_proxy(lc, config) linphone_core_set_default_proxy_config(lc, config)
 
-void linphone_core_set_default_proxy_index(LinphoneCore *lc, int index);
+LINPHONE_PUBLIC void linphone_core_set_default_proxy_index(LinphoneCore *lc, int index);
 
 LINPHONE_PUBLIC	int linphone_core_get_default_proxy(LinphoneCore *lc, LinphoneProxyConfig **config);
 
@@ -3090,10 +3093,10 @@ LINPHONE_PUBLIC LpConfig * linphone_core_get_config(LinphoneCore *lc);
 LINPHONE_PUBLIC LpConfig * linphone_core_create_lp_config(LinphoneCore *lc, const char *filename);
 
 /*set a callback for some blocking operations, it takes you informed of the progress of the operation*/
-void linphone_core_set_waiting_callback(LinphoneCore *lc, LinphoneCoreWaitingCallback cb, void *user_context);
+LINPHONE_PUBLIC void linphone_core_set_waiting_callback(LinphoneCore *lc, LinphoneCoreWaitingCallback cb, void *user_context);
 
 /*returns the list of registered SipSetup (linphonecore plugins) */
-const MSList * linphone_core_get_sip_setups(LinphoneCore *lc);
+LINPHONE_PUBLIC const MSList * linphone_core_get_sip_setups(LinphoneCore *lc);
 
 LINPHONE_PUBLIC	void linphone_core_destroy(LinphoneCore *lc);
 
@@ -3177,8 +3180,8 @@ LINPHONE_PUBLIC	float linphone_core_get_conference_local_input_volume(LinphoneCo
 
 LINPHONE_PUBLIC	int linphone_core_terminate_conference(LinphoneCore *lc);
 LINPHONE_PUBLIC	int linphone_core_get_conference_size(LinphoneCore *lc);
-int linphone_core_start_conference_recording(LinphoneCore *lc, const char *path);
-int linphone_core_stop_conference_recording(LinphoneCore *lc);
+LINPHONE_PUBLIC int linphone_core_start_conference_recording(LinphoneCore *lc, const char *path);
+LINPHONE_PUBLIC int linphone_core_stop_conference_recording(LinphoneCore *lc);
 /**
  * Get the maximum number of simultaneous calls Linphone core can manage at a time. All new call above this limit are declined with a busy answer
  * @ingroup initializing
@@ -3480,6 +3483,27 @@ LINPHONE_PUBLIC void linphone_core_enable_video_multicast(LinphoneCore *core, bo
  * @ingroup media_parameters
 **/
 LINPHONE_PUBLIC bool_t linphone_core_video_multicast_enabled(const LinphoneCore *core);
+
+/**
+ * Set the network simulator parameters.
+ * Liblinphone has the capabability of simulating the effects of a network (latency, lost packets, jitter, max bandwidth).
+ * Please refer to the oRTP documentation for the meaning of the parameters of the OrtpNetworkSimulatorParams structure.
+ * This function has effect for future calls, but not for currently running calls, though this behavior may be changed in future versions.
+ * @warning Due to design of network simulation in oRTP, simulation is applied independently for audio and video stream. This means for example that a bandwidth
+ * limit of 250kbit/s will have no effect on an audio stream running at 40kbit/s while a videostream targetting 400kbit/s will be highly affected.
+ * @param lc the LinphoneCore
+ * @param params the parameters used for the network simulation.
+ * @return 0 if successful, -1 otherwise.
+**/
+LINPHONE_PUBLIC int linphone_core_set_network_simulator_params(LinphoneCore *lc, const OrtpNetworkSimulatorParams *params);
+
+
+/**
+ * Get the previously set network simulation parameters.
+ * @see linphone_core_set_network_simulator_params
+ * @return a OrtpNetworkSimulatorParams structure.
+**/
+LINPHONE_PUBLIC const OrtpNetworkSimulatorParams *linphone_core_get_network_simulator_params(const LinphoneCore *lc);
 
 #ifdef __cplusplus
 }

@@ -257,7 +257,7 @@ LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_f
 	LinphoneProxyConfig* proxy;
 	char *rc_path = NULL;
 	int proxy_count;
-
+	mgr->number_of_cunit_error_at_creation = CU_get_number_of_failures();
 	mgr->v_table.registration_state_changed=registration_state_changed;
 	mgr->v_table.auth_info_requested=auth_info_requested;
 	mgr->v_table.call_state_changed=call_state_changed;
@@ -296,10 +296,13 @@ LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_f
 
 	if( manager_count >= 2){
 		char hellopath[512];
+		char *recordpath = ms_strdup_printf("%s/record_for_lc_%p.wav",liblinphone_tester_writable_dir_prefix,mgr->lc);
 		ms_message("Manager for '%s' using files", rc_file ? rc_file : "--");
 		linphone_core_use_files(mgr->lc, TRUE);
 		snprintf(hellopath,sizeof(hellopath), "%s/sounds/hello8000.wav", liblinphone_tester_file_prefix);
 		linphone_core_set_play_file(mgr->lc,hellopath);
+		linphone_core_set_record_file(mgr->lc,recordpath);
+		ms_free(recordpath);
 	}
 
 	if (proxy_count){
@@ -334,10 +337,21 @@ void linphone_core_manager_stop(LinphoneCoreManager *mgr){
 }
 
 void linphone_core_manager_destroy(LinphoneCoreManager* mgr) {
-	if (mgr->lc) linphone_core_destroy(mgr->lc);
+	if (mgr->lc){
+		const char *record_file=linphone_core_get_record_file(mgr->lc);
+		if (record_file){
+			if ((CU_get_number_of_failures()-mgr->number_of_cunit_error_at_creation)>0) {
+				ms_message ("Test has failed, keeping recorded file [%s]",record_file);
+			} else {
+				unlink(record_file);
+			}
+		}
+		linphone_core_destroy(mgr->lc);
+	}
 	if (mgr->identity) linphone_address_destroy(mgr->identity);
 	if (mgr->stat.last_received_chat_message) linphone_chat_message_unref(mgr->stat.last_received_chat_message);
 	manager_count--;
+
 	ms_free(mgr);
 }
 
@@ -445,6 +459,7 @@ void liblinphone_tester_init(void) {
 	add_test_suite(&register_test_suite);
 	add_test_suite(&offeranswer_test_suite);
 	add_test_suite(&call_test_suite);
+	add_test_suite(&multi_call_test_suite);
 	add_test_suite(&message_test_suite);
 	add_test_suite(&presence_test_suite);
 #ifdef UPNP
@@ -500,17 +515,19 @@ static void test_complete_message_handler(const CU_pTest pTest,
 
 
 static void test_all_tests_complete_message_handler(const CU_pFailureRecord pFailure) {
+#ifdef HAVE_CU_GET_SUITE
   	char * results = CU_get_run_results_string();
   	if (liblinphone_tester_use_log_file) {
   		ms_warning("\n\n %s", results);
   	}
 	liblinphone_tester_fprintf(stdout,"\n\n %s",results);
 	ms_free(results);
+#endif
 }
 
 static void test_suite_init_failure_message_handler(const CU_pSuite pSuite) {
 	if (liblinphone_tester_use_log_file) ms_warning("Suite initialization failed for [%s].", pSuite->pName);
-    liblinphone_tester_fprintf(stdout,"Suite initialization failed for [%s].", pSuite->pName);
+	liblinphone_tester_fprintf(stdout,"Suite initialization failed for [%s].", pSuite->pName);
 }
 
 static void test_suite_cleanup_failure_message_handler(const CU_pSuite pSuite) {
@@ -518,14 +535,17 @@ static void test_suite_cleanup_failure_message_handler(const CU_pSuite pSuite) {
 	liblinphone_tester_fprintf(stdout,"Suite cleanup failed for [%s].", pSuite->pName);
 }
 
+#ifdef HAVE_CU_GET_SUITE
 static void test_start_message_handler(const CU_pTest pTest, const CU_pSuite pSuite) {
 	if (liblinphone_tester_use_log_file) ms_warning("Suite [%s] Test [%s]", pSuite->pName,pTest->pName);
 	liblinphone_tester_fprintf(stdout,"\nSuite [%s] Test [%s]\n", pSuite->pName,pTest->pName);
 }
+
 static void test_suite_start_message_handler(const CU_pSuite pSuite) {
 	if (liblinphone_tester_use_log_file) ms_warning("Suite [%s]", pSuite->pName);
 	liblinphone_tester_fprintf(stdout,"\nSuite [%s]", pSuite->pName);
 }
+#endif
 
 int liblinphone_tester_run_tests(const char *suite_name, const char *test_name) {
 	int i;
@@ -537,15 +557,16 @@ int liblinphone_tester_run_tests(const char *suite_name, const char *test_name) 
 	for (i = 0; i < liblinphone_tester_nb_test_suites(); i++) {
 		run_test_suite(test_suite[i]);
 	}
-
+#ifdef HAVE_CU_GET_SUITE
 	CU_set_test_start_handler(test_start_message_handler);
+#endif	
 	CU_set_test_complete_handler(test_complete_message_handler);
 	CU_set_all_test_complete_handler(test_all_tests_complete_message_handler);
 	CU_set_suite_init_failure_handler(test_suite_init_failure_message_handler);
 	CU_set_suite_cleanup_failure_handler(test_suite_cleanup_failure_message_handler);
+#ifdef HAVE_CU_GET_SUITE
 	CU_set_suite_start_handler(test_suite_start_message_handler);
-
-
+#endif
 	if( liblinphone_tester_xml_file != NULL ){
 		CU_set_output_filename(liblinphone_tester_xml_file);
 	}
@@ -558,7 +579,13 @@ int liblinphone_tester_run_tests(const char *suite_name, const char *test_name) 
 			ms_warning("Tester compiled without CU_get_suite() function, running all tests instead of suite '%s'\n", suite_name);
 		}
 #else
-		if (suite_name){
+	if (!test_name && suite_name && strcmp("Call",suite_name) == 0) {
+		/*special case for suite Call which is now splitted into simple and multi*/
+		CU_run_suite(CU_get_suite("Single call"));
+		CU_run_suite(CU_get_suite("Multi call"));
+		CU_run_suite(CU_get_suite("DTMF"));
+		CU_run_suite(CU_get_suite("Transport"));
+	} else if (suite_name){
 			CU_pSuite suite;
 			suite=CU_get_suite(suite_name);
 			if (!suite) {

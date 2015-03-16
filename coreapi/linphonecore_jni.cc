@@ -1160,10 +1160,23 @@ extern "C" jlong Java_org_linphone_core_LinphoneCoreImpl_newLinphoneCore(JNIEnv*
 	if (factoryConfig) env->ReleaseStringUTFChars(jfactoryConfig, factoryConfig);
 	return nativePtr;
 }
-extern "C" void Java_org_linphone_core_LinphoneCoreImpl_delete(JNIEnv* env, jobject thiz, jlong lc) {
-	jobject core = (jobject)linphone_core_get_user_data((LinphoneCore*)lc);
-	linphone_core_destroy((LinphoneCore*)lc);
+extern "C" void Java_org_linphone_core_LinphoneCoreImpl_delete(JNIEnv* env, jobject thiz, jlong native_ptr) {
+	LinphoneCore *lc=(LinphoneCore*)native_ptr;
+	jobject core = (jobject)linphone_core_get_user_data(lc);
+
+	jobject multicast_lock = lc->multicast_lock;
+	jobject multicast_lock_class = lc->multicast_lock_class;
+	jobject wifi_lock = lc->wifi_lock;
+	jobject wifi_lock_class = lc->wifi_lock_class;
+
+	linphone_core_destroy(lc);
 	ms_exit();
+
+	if (wifi_lock) env->DeleteGlobalRef(wifi_lock);
+	if (wifi_lock_class) env->DeleteGlobalRef(wifi_lock_class);
+	if (multicast_lock) env->DeleteGlobalRef(multicast_lock);
+	if (multicast_lock_class) env->DeleteGlobalRef(multicast_lock_class);
+
 	if (core) {
 		env->DeleteGlobalRef(core);
 	}
@@ -1180,8 +1193,9 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_removeListener(JNIEnv* e
 	MSList* iterator;
 	LinphoneCore *core = (LinphoneCore*)lc;
 	//jobject listener = env->NewGlobalRef(jlistener);
-	for (iterator = core->vtables; iterator != NULL; ) {
-		LinphoneCoreVTable *vTable = (LinphoneCoreVTable*)(iterator->data);
+	for (iterator = core->vtable_refs; iterator != NULL; ) {
+		VTableReference *ref=(VTableReference*)(iterator->data);
+		LinphoneCoreVTable *vTable = ref->valid ? ref->vtable : NULL;
 		iterator = iterator->next; //Because linphone_core_remove_listener may change the list
 		if (vTable) {
 			LinphoneCoreData *data = (LinphoneCoreData*) linphone_core_v_table_get_user_data(vTable);
@@ -1198,6 +1212,10 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_removeListener(JNIEnv* e
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_uploadLogCollection(JNIEnv* env, jobject thiz, jlong lc) {
 	LinphoneCore *core = (LinphoneCore*)lc;
 	linphone_core_upload_log_collection(core);
+}
+
+extern "C" void Java_org_linphone_core_LinphoneCoreImpl_resetLogCollection(JNIEnv* env, jobject thiz) {
+	linphone_core_reset_log_collection();
 }
 
 extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_migrateToMultiTransport(JNIEnv*  env
@@ -1603,6 +1621,7 @@ extern "C" jlong Java_org_linphone_core_LinphoneCoreImpl_findPayloadType(JNIEnv*
 	env->ReleaseStringUTFChars(jmime, mime);
 	return result;
 }
+
 extern "C" jlongArray Java_org_linphone_core_LinphoneCoreImpl_listVideoPayloadTypes(JNIEnv*  env
 																			,jobject  thiz
 																			,jlong lc) {
@@ -1621,6 +1640,18 @@ extern "C" jlongArray Java_org_linphone_core_LinphoneCoreImpl_listVideoPayloadTy
 	return jCodecs;
 }
 
+JNIEXPORT void JNICALL Java_org_linphone_core_LinphoneCoreImpl_setVideoCodecs(JNIEnv *env, jobject thiz, jlong lc, jlongArray jCodecs) {
+	MSList *pts = NULL;
+	int codecsCount = env->GetArrayLength(jCodecs);
+	jlong *codecs = env->GetLongArrayElements(jCodecs, NULL);
+	for (int i = 0; i < codecsCount; i++) {
+		PayloadType *pt = (PayloadType *)codecs[i];
+		ms_list_append(pts, pt);
+	}
+	linphone_core_set_video_codecs((LinphoneCore *)lc, pts);
+	env->ReleaseLongArrayElements(jCodecs, codecs, 0);
+}
+
 extern "C" jlongArray Java_org_linphone_core_LinphoneCoreImpl_listAudioPayloadTypes(JNIEnv*  env
 																			,jobject  thiz
 																			,jlong lc) {
@@ -1637,6 +1668,18 @@ extern "C" jlongArray Java_org_linphone_core_LinphoneCoreImpl_listAudioPayloadTy
 	env->ReleaseLongArrayElements(jCodecs, jInternalArray, 0);
 
 	return jCodecs;
+}
+
+JNIEXPORT void JNICALL Java_org_linphone_core_LinphoneCoreImpl_setAudioCodecs(JNIEnv *env, jobject thiz, jlong lc, jlongArray jCodecs) {
+	MSList *pts = NULL;
+	int codecsCount = env->GetArrayLength(jCodecs);
+	jlong *codecs = env->GetLongArrayElements(jCodecs, NULL);
+	for (int i = 0; i < codecsCount; i++) {
+		PayloadType *pt = (PayloadType *)codecs[i];
+		pts = ms_list_append(pts, pt);
+	}
+	linphone_core_set_audio_codecs((LinphoneCore *)lc, pts);
+	env->ReleaseLongArrayElements(jCodecs, codecs, 0);
 }
 
 extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_enablePayloadType(JNIEnv*  env
@@ -1673,6 +1716,21 @@ extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_getPayloadTypeBitrate(JN
 																			,jlong lc
 																			,jlong pt) {
 	return (jint)linphone_core_get_payload_type_bitrate((LinphoneCore*)lc,(PayloadType*)pt);
+}
+
+extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setPayloadTypeNumber(JNIEnv*  env
+                                                                            ,jobject  thiz
+                                                                            ,jlong lc
+                                                                            ,jlong pt
+                                                                            ,jint number) {
+    linphone_core_set_payload_type_number((LinphoneCore*)lc,(PayloadType*)pt,number);
+}
+
+extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_getPayloadTypeNumber(JNIEnv*  env
+                                                                            ,jobject  thiz
+                                                                            ,jlong lc
+                                                                            ,jlong pt) {
+    return (jint)linphone_core_get_payload_type_number((LinphoneCore*)lc,(PayloadType*)pt);
 }
 
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_enableAdaptiveRateControl(JNIEnv*  env
@@ -1908,15 +1966,31 @@ extern "C" jint Java_org_linphone_core_LinphoneCoreImpl_startEchoCalibration(JNI
 
 }
 
-extern "C" jboolean Java_org_linphone_core_LinphoneCoreImpl_needsEchoCalibration(JNIEnv *env, jobject thiz, jlong lc){
+extern "C" jboolean Java_org_linphone_core_LinphoneCoreImpl_needsEchoCalibration(JNIEnv *env, jobject thiz, jlong lc) {
 	MSSndCard *sndcard;
-	MSSndCardManager *m=ms_snd_card_manager_get();
-	const char *card=linphone_core_get_capture_device((LinphoneCore*)lc);
-	sndcard=ms_snd_card_manager_get_card(m,card);
-	if (sndcard == NULL){
+	MSSndCardManager *m = ms_snd_card_manager_get();
+	const char *card = linphone_core_get_capture_device((LinphoneCore*)lc);
+	sndcard = ms_snd_card_manager_get_card(m, card);
+	if (sndcard == NULL) {
 		ms_error("Could not get soundcard %s", card);
 		return TRUE;
 	}
+	
+	if (ms_snd_card_get_capabilities(sndcard) & MS_SND_CARD_CAP_BUILTIN_ECHO_CANCELLER) return FALSE;
+	if (ms_snd_card_get_minimal_latency(sndcard) != 0) return FALSE;
+	return TRUE;
+}
+
+extern "C" jboolean Java_org_linphone_core_LinphoneCoreImpl_needsEchoCanceler(JNIEnv *env, jobject thiz, jlong lc) {
+	MSSndCard *sndcard;
+	MSSndCardManager *m = ms_snd_card_manager_get();
+	const char *card = linphone_core_get_capture_device((LinphoneCore*)lc);
+	sndcard = ms_snd_card_manager_get_card(m, card);
+	if (sndcard == NULL) {
+		ms_error("Could not get soundcard %s", card);
+		return TRUE;
+	}
+	
 	if (ms_snd_card_get_capabilities(sndcard) & MS_SND_CARD_CAP_BUILTIN_ECHO_CANCELLER) return FALSE;
 	return TRUE;
 }
@@ -4031,33 +4105,43 @@ extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setAndroidPowerManager(J
 #endif
 }
 
+/*released in Java_org_linphone_core_LinphoneCoreImpl_delete*/
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setAndroidWifiLock(JNIEnv *env, jobject thiz, jlong ptr, jobject wifi_lock) {
 #ifdef ANDROID
 	LinphoneCore *lc=(LinphoneCore*)ptr;
-	if (lc->wifi_lock)
+	if (lc->wifi_lock) {
 		env->DeleteGlobalRef(lc->wifi_lock);
+		env->DeleteGlobalRef(lc->wifi_lock_class);
+	}
 	if (wifi_lock != NULL) {
 		lc->wifi_lock=env->NewGlobalRef(wifi_lock);
-		jclass wifiLockClass = env->FindClass("android/net/wifi/WifiManager$WifiLock");
-		lc->wifi_lock_acquire_id = env->GetMethodID(wifiLockClass, "acquire", "()V");
-		lc->wifi_lock_release_id = env->GetMethodID(wifiLockClass, "release", "()V");
+		lc->wifi_lock_class = env->FindClass("android/net/wifi/WifiManager$WifiLock");
+		lc->wifi_lock_class = (jclass)env->NewGlobalRef(lc->wifi_lock_class); /*to make sure methodid are preserved*/
+		lc->wifi_lock_acquire_id = env->GetMethodID(lc->wifi_lock_class, "acquire", "()V");
+		lc->wifi_lock_release_id = env->GetMethodID(lc->wifi_lock_class, "release", "()V");
 	} else {
 		lc->wifi_lock=NULL;
+		lc->wifi_lock_class=NULL;
 	}
 #endif
 }
+/*released in Java_org_linphone_core_LinphoneCoreImpl_delete*/
 extern "C" void Java_org_linphone_core_LinphoneCoreImpl_setAndroidMulticastLock(JNIEnv *env, jobject thiz, jlong ptr, jobject multicast_lock) {
 #ifdef ANDROID
 	LinphoneCore *lc=(LinphoneCore*)ptr;
-	if (lc->multicast_lock)
+	if (lc->multicast_lock) {
 		env->DeleteGlobalRef(lc->multicast_lock);
+		env->DeleteGlobalRef(lc->multicast_lock_class);
+	}
 	if (multicast_lock != NULL) {
 		lc->multicast_lock=env->NewGlobalRef(multicast_lock);
-		jclass multicastLockClass = env->FindClass("android/net/wifi/WifiManager$MulticastLock");
-		lc->multicast_lock_acquire_id = env->GetMethodID(multicastLockClass, "acquire", "()V");
-		lc->multicast_lock_release_id = env->GetMethodID(multicastLockClass, "release", "()V");
+		lc->multicast_lock_class = env->FindClass("android/net/wifi/WifiManager$MulticastLock");
+		lc->multicast_lock_class = (jclass)env->NewGlobalRef(lc->multicast_lock_class);/*to make sure methodid are preserved*/
+		lc->multicast_lock_acquire_id = env->GetMethodID(lc->multicast_lock_class, "acquire", "()V");
+		lc->multicast_lock_release_id = env->GetMethodID(lc->multicast_lock_class, "release", "()V");
 	} else {
 		lc->multicast_lock=NULL;
+		lc->multicast_lock_class=NULL;
 	}
 #endif
 }
@@ -5787,4 +5871,10 @@ extern "C" jboolean JNICALL Java_org_linphone_core_LinphoneCoreImpl_videoMultica
 	return linphone_core_video_multicast_enabled((LinphoneCore*)ptr);
 }
 
+JNIEXPORT void JNICALL Java_org_linphone_core_LinphoneCoreImpl_enableDnsSrv(JNIEnv *env, jobject thiz, jlong lc, jboolean yesno) {
+	linphone_core_enable_dns_srv((LinphoneCore *)lc, yesno);
+}
 
+JNIEXPORT jboolean JNICALL Java_org_linphone_core_LinphoneCoreImpl_dnsSrvEnabled(JNIEnv *env, jobject thiz, jlong lc) {
+	return linphone_core_dns_srv_enabled((LinphoneCore *)lc);
+}

@@ -114,12 +114,14 @@ class LinphoneCoreImpl implements LinphoneCore {
 	private native void setRing(long nativePtr, String path);
 	private native String getRing(long nativePtr);
 	private native void setRootCA(long nativePtr, String path);
-	private native void setRingback(long nativePtr, String path);	
+	private native void setRingback(long nativePtr, String path);
 	private native long[] listVideoPayloadTypes(long nativePtr);
+	private native void setVideoCodecs(long nativePtr, long[] codecs);
 	private native LinphoneProxyConfig[] getProxyConfigList(long nativePtr);
 	private native long[] getAuthInfosList(long nativePtr);
 	private native long findAuthInfos(long nativePtr, String username, String realm, String domain);
 	private native long[] listAudioPayloadTypes(long nativePtr);
+	private native void setAudioCodecs(long nativePtr, long[] codecs);
 	private native void enableKeepAlive(long nativePtr,boolean enable);
 	private native boolean isKeepAliveEnabled(long nativePtr);
 	private native int startEchoCalibration(long nativePtr,Object data);
@@ -560,6 +562,13 @@ class LinphoneCoreImpl implements LinphoneCore {
 
 		return codecs;
 	}
+	public synchronized void setVideoCodecs(PayloadType[] codecs) {
+		long[] typesPtr = new long[codecs.length];
+		for (int i=0; i < codecs.length; i++) {
+			typesPtr[i] = ((PayloadTypeImpl)codecs[i]).nativePtr;
+		}
+		setVideoCodecs(nativePtr, typesPtr);
+	}
 	public synchronized PayloadType[] getAudioCodecs() {
 		long[] typesPtr = listAudioPayloadTypes(nativePtr);
 		if (typesPtr == null) return null;
@@ -571,6 +580,13 @@ class LinphoneCoreImpl implements LinphoneCore {
 		}
 
 		return codecs;
+	}
+	public synchronized void setAudioCodecs(PayloadType[] codecs) {
+		long[] typesPtr = new long[codecs.length];
+		for (int i=0; i < codecs.length; i++) {
+			typesPtr[i] = ((PayloadTypeImpl)codecs[i]).nativePtr;
+		}
+		setAudioCodecs(nativePtr, typesPtr);
 	}
 	public synchronized boolean isNetworkReachable() {
 		return isNetworkStateReachable(nativePtr);
@@ -1029,6 +1045,11 @@ class LinphoneCoreImpl implements LinphoneCore {
 	public synchronized boolean needsEchoCalibration() {
 		return needsEchoCalibration(nativePtr);
 	}
+	private native boolean needsEchoCanceler(long ptr);
+	@Override
+	public synchronized boolean needsEchoCanceler() {
+		return needsEchoCanceler(nativePtr);
+	}
 	private native void declineCall(long coreptr, long callptr, int reason);
 	@Override
 	public synchronized void declineCall(LinphoneCall aCall, Reason reason) {
@@ -1274,6 +1295,18 @@ class LinphoneCoreImpl implements LinphoneCore {
 	public synchronized int getPayloadTypeBitrate(PayloadType pt) {
 		return getPayloadTypeBitrate(nativePtr, ((PayloadTypeImpl)pt).nativePtr);
 	}
+
+	private native void setPayloadTypeNumber(long coreptr, long payload_ptr, int number);
+	@Override
+	public synchronized void setPayloadTypeNumber(PayloadType pt, int number) {
+		setPayloadTypeNumber(nativePtr, ((PayloadTypeImpl)pt).nativePtr, number);
+	}
+	private native int getPayloadTypeNumber(long coreptr, long payload_ptr);
+	@Override
+	public synchronized int getPayloadTypeNumber(PayloadType pt) {
+		return getPayloadTypeNumber(nativePtr, ((PayloadTypeImpl)pt).nativePtr);
+	}
+
 	@Override
 	public synchronized void enableAdaptiveRateControl(boolean enable) {
 		enableAdaptiveRateControl(nativePtr,enable);
@@ -1352,6 +1385,9 @@ class LinphoneCoreImpl implements LinphoneCore {
 	public void uploadLogCollection() {
 		uploadLogCollection(nativePtr);
 	}
+
+	@Override
+	public native void resetLogCollection();
 	
 	private native void setPreferredFramerate(long nativePtr, float fps);
 	@Override
@@ -1430,5 +1466,16 @@ class LinphoneCoreImpl implements LinphoneCore {
 	@Override
 	public boolean videoMulticastEnabled() {
 		return videoMulticastEnabled(nativePtr);
+	}
+
+	private native void enableDnsSrv(long ptr, boolean yesno);
+	@Override
+	public void enableDnsSrv(boolean yesno) {
+		enableDnsSrv(nativePtr, yesno);
+	}
+	private native boolean dnsSrvEnabled(long ptr);
+	@Override
+	public boolean dnsSrvEnabled() {
+		return dnsSrvEnabled(nativePtr);
 	}
 }

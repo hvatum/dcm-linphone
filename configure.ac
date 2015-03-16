@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([linphone],[3.7.0],[linphone-developers@nongnu.org])
+AC_INIT([linphone],[3.8.0],[linphone-developers@nongnu.org])
 AC_CANONICAL_SYSTEM
 AC_CONFIG_SRCDIR([coreapi/linphonecore.c])
 
@@ -71,7 +71,7 @@ case $target in
 		mingw_found=yes
 		AC_CHECK_TOOL(WINDRES, windres)
 	;;
-	armv6-apple-darwin|armv7-apple-darwin|i386-apple-darwin|armv7s-apple-darwin)
+	armv6-apple-darwin|armv7-apple-darwin|i386-apple-darwin|armv7s-apple-darwin|aarch64-apple-darwin|*-apple-darwin.ios)
 		CFLAGS="$CFLAGS -DTARGET_OS_IPHONE=1 "
 		LIBS="$LIBS -framework CoreFoundation -framework AudioToolbox -framework CoreAudio -framework Foundation -framework QuartzCore -framework OpenGLES -framework UIKit -framework AVFoundation"
 		ios_found=yes
@@ -79,7 +79,7 @@ case $target in
 	x86_64-apple-darwin*|i686-apple-darwin*)
 		MSPLUGINS_CFLAGS=""
 		dnl use macport installation
-		ACLOCAL_MACOS_FLAGS="-I /opt/local/share/aclocal"
+		AS_IF([test -d "/opt/local/share/aclocal"], [ACLOCAL_MACOS_FLAGS="-I /opt/local/share/aclocal"])
 		build_macos=yes
 	;;
 
@@ -377,15 +377,6 @@ if test "$gtk_ui" = "true" ; then
 	fi
 fi
 
-case "$target" in
-        #macosx 64 bits
-        x86_64-apple-darwin*)
-                LIBS="$LIBS -mmacosx-version-min=10.6"
-                CXXFLAGS="$CXXFLAGS -mmacosx-version-min=10.6"
-                CFLAGS="$CFLAGS -mmacosx-version-min=10.6"
-        ;;
-esac
-
 dnl os-specific problems not handled by existing macros.
 case "$host_os" in
 	*freebsd*)
@@ -638,6 +629,16 @@ AC_ARG_ENABLE(dtls,
 	[dtls=false]
 )
 
+AC_ARG_ENABLE(g729bCN,
+	[AS_HELP_STRING([--enable-g729bCN], [Turn on or off usage of G729AnnexB in RFC3389 implementation of Comfort Noise Payload (default=no)])],
+	[case "${enableval}" in
+		yes)	g729bCN=true ;;
+		no)	g729bCN=false ;;
+		*)	AC_MSG_ERROR(bad value ${enableval} for --enable-g729bCN) ;;
+	esac],
+	[g729bCN=false]
+)
+
 dnl build console if required
 AM_CONDITIONAL(BUILD_CONSOLE, test x$console_ui = xtrue)
 
@@ -759,7 +760,7 @@ AC_ARG_ENABLE(external-ortp,
 )
 
 if test "$external_ortp" = 'true'; then
-	PKG_CHECK_MODULES([ORTP], [ortp >= 0.23.0])
+	PKG_CHECK_MODULES([ORTP], [ortp >= 0.24.0])
 	ORTP_VERSION=`$PKG_CONFIG --modversion ortp`
 else
 	AC_CONFIG_SUBDIRS( oRTP )
@@ -788,7 +789,7 @@ AC_ARG_ENABLE([external-mediastreamer],
 
 AS_CASE($enable_external_mediastreamer,
 	[yes],
-	[PKG_CHECK_MODULES([MEDIASTREAMER], [mediastreamer >= 2.10.0])
+	[PKG_CHECK_MODULES([MEDIASTREAMER], [mediastreamer >= 2.11.0])
 	MS2_VERSION=`$PKG_CONFIG --modversion mediastreamer`],
 	[no],
 	[AC_CONFIG_SUBDIRS( mediastreamer2 )
@@ -842,6 +843,9 @@ if test x$enable_msg_storage != xfalse; then
 	fi
 	if test "$found_sqlite" = "yes"; then
 		SQLITE3_CFLAGS+="-DMSG_STORAGE_ENABLED"
+		if test "$build_macos" = "yes" -o "$ios_found" = "yes"; then
+			SQLITE3_LIBS+=" -liconv"
+		fi
 		enable_msg_storage=true
 	else
 		if test x$enable_msg_storage = xtrue; then
@@ -856,7 +860,7 @@ fi
 
 AM_CONDITIONAL(BUILD_MSG_STORAGE, test x$enable_msg_storage = xtrue)
 
-PKG_CHECK_MODULES(BELLESIP, [belle-sip >= 1.3.1])
+PKG_CHECK_MODULES(BELLESIP, [belle-sip >= 1.4.0])
 
 SIPSTACK_CFLAGS="$BELLESIP_CFLAGS"
 SIPSTACK_LIBS="$BELLESIP_LIBS"
