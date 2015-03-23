@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "lpconfig.h"
 #include "private.h"
 #include "quality_reporting.h"
+#include "lime.h"
 
 #include <math.h>
 #include <sys/types.h>
@@ -170,6 +171,10 @@ void linphone_core_set_log_file(FILE *file) {
 }
 
 void linphone_core_set_log_level(OrtpLogLevel loglevel) {
+	linphone_core_set_log_level_mask(loglevel);
+}
+
+void linphone_core_set_log_level_mask(OrtpLogLevel loglevel) {
 	ortp_set_log_level_mask(loglevel);
 	if (loglevel == 0) {
 		sal_disable_logs();
@@ -960,6 +965,7 @@ static void sip_config_read(LinphoneCore *lc)
 	lc->sip_conf.vfu_with_info=lp_config_get_int(lc->config,"sip","vfu_with_info",1);
 	linphone_core_set_sip_transport_timeout(lc, lp_config_get_int(lc->config, "sip", "transport_timeout", 63000));
 	sal_set_supported_tags(lc->sal,lp_config_get_string(lc->config,"sip","supported","replaces, outbound"));
+	lc->sip_conf.save_auth_info = lp_config_get_int(lc->config, "sip", "save_auth_info", 1);
 }
 
 static void rtp_config_read(LinphoneCore *lc)
@@ -1093,7 +1099,7 @@ static bool_t get_codec(LinphoneCore *lc, SalStreamType type, int index, Payload
 		MSList **default_list=(type==SalAudio) ? &lc->default_audio_codecs :  &lc->default_video_codecs;
 		if (type==SalAudio)
 			ms_warning("Codec %s/%i/%i read from conf is not in the default list.",mime,rate,channels);
-		else 
+		else
 			ms_warning("Codec %s/%i read from conf is not in the default list.",mime,rate);
 		pt=payload_type_new();
 		pt->type=(type==SalAudio) ? PAYLOAD_AUDIO_PACKETIZED :  PAYLOAD_VIDEO;
@@ -1105,6 +1111,7 @@ static bool_t get_codec(LinphoneCore *lc, SalStreamType type, int index, Payload
 		*default_list=ms_list_append(*default_list, pt);
 	}
 	if (enabled ) pt->flags|=PAYLOAD_TYPE_ENABLED;
+	else pt->flags&=~PAYLOAD_TYPE_ENABLED;
 	*ret=pt;
 	return TRUE;
 }
@@ -1311,7 +1318,7 @@ void linphone_core_set_adaptive_rate_algorithm(LinphoneCore *lc, const char* alg
  * See linphone_core_set_adaptive_rate_algorithm().
 **/
 const char * linphone_core_get_adaptive_rate_algorithm(const LinphoneCore *lc){
-	return lp_config_get_string(lc->config, "net", "adaptive_rate_algorithm", "Simple");
+	return lp_config_get_string(lc->config, "net", "adaptive_rate_algorithm", "Stateful");
 }
 
 bool_t linphone_core_rtcp_enabled(const LinphoneCore *lc){
@@ -1492,7 +1499,7 @@ static void misc_config_read(LinphoneCore *lc) {
 	LpConfig *config=lc->config;
 	const char *uuid;
 
-	lc->max_call_logs=lp_config_get_int(config,"misc","history_max_size",15);
+	lc->max_call_logs=lp_config_get_int(config,"misc","history_max_size",30);
 	lc->max_calls=lp_config_get_int(config,"misc","max_calls",NB_MAX_CALLS);
 
 	uuid=lp_config_get_string(config,"misc","uuid",NULL);
@@ -1562,7 +1569,7 @@ static void linphone_core_register_default_codecs(LinphoneCore *lc){
 	const char *aac_fmtp162248, *aac_fmtp3244;
 	bool_t opus_enabled=TRUE;
 	/*default enabled audio codecs, in order of preference*/
-#ifdef __arm__
+#if defined(__arm__) || defined(_M_ARM)
 	/*hack for opus, that needs to be disabed by default on ARM single processor, otherwise there is no cpu left for video processing*/
 	if (ms_get_cpu_count()==1) opus_enabled=FALSE;
 #endif
@@ -1840,7 +1847,7 @@ void linphone_core_enable_lime(LinphoneCore *lc, bool_t val){
 }
 
 bool_t linphone_core_lime_enabled(const LinphoneCore *lc){
-	return lp_config_get_int(lc->config,"sip", "lime", FALSE);
+	return (lp_config_get_int(lc->config,"sip", "lime", FALSE) && lime_is_available());
 }
 
 /**
@@ -3636,7 +3643,6 @@ int _linphone_core_accept_call_update(LinphoneCore *lc, LinphoneCall *call, cons
 		ms_warning("Video isn't supported in conference");
 		call->params->has_video = FALSE;
 	}
-	call->params->has_video &= linphone_core_media_description_contains_video_stream(remote_desc);
 	linphone_call_init_media_streams(call); /*so that video stream is initialized if necessary*/
 	if (call->ice_session != NULL) {
 		if (linphone_call_prepare_ice(call,TRUE)==1)
@@ -4806,7 +4812,7 @@ static void linphone_core_mute_audio_stream(LinphoneCore *lc, AudioStream *st, b
 	} else {
 		audio_stream_set_mic_gain_db(st, lc->sound_conf.soft_mic_lev);
 	}
-	
+
 	if ( linphone_core_get_rtp_no_xmit_on_audio_mute(lc) ){
 		audio_stream_mute_rtp(st,val);
 	}
@@ -6883,9 +6889,7 @@ const char *linphone_media_encryption_to_string(LinphoneMediaEncryption menc){
 	return "INVALID";
 }
 
-/**
- * Returns whether a media encryption scheme is supported by the LinphoneCore engine
-**/
+
 bool_t linphone_core_media_encryption_supported(const LinphoneCore *lc, LinphoneMediaEncryption menc){
 	switch(menc){
 		case LinphoneMediaEncryptionSRTP:

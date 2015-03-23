@@ -26,6 +26,8 @@ endif()
 find_package(GTK2 2.18 COMPONENTS gtk)
 
 set(SOURCE_FILES
+	common/bc_tester_utils.c
+	common/bc_tester_utils.h
 	accountmanager.c
 	call_tester.c
 	dtmf_tester.c
@@ -50,9 +52,11 @@ set(SOURCE_FILES
 	video_tester.c
 )
 
+add_definitions(-DBC_CONFIG_FILE="config.h")
+
 add_executable(liblinphone_tester ${SOURCE_FILES})
 set_target_properties(liblinphone_tester PROPERTIES LINKER_LANGUAGE CXX)
-target_include_directories(liblinphone_tester PUBLIC ${CUNIT_INCLUDE_DIRS})
+target_include_directories(liblinphone_tester PUBLIC ${CUNIT_INCLUDE_DIRS} PRIVATE common)
 target_link_libraries(liblinphone_tester linphone ${CUNIT_LIBRARIES})
 if (GTK2_FOUND)
 	target_compile_definitions(liblinphone_tester PRIVATE HAVE_GTK)

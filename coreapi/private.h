@@ -110,6 +110,8 @@ struct _LinphoneCallParams{
 	LinphonePrivacyMask privacy;
 	LinphoneMediaDirection audio_dir;
 	LinphoneMediaDirection video_dir;
+	bool_t video_declined; /*use to keep  traces of declined video to avoid to re-offer video in case of automatic RE-INVITE*/
+	bool_t internal_call_update; /*use mark that call update was requested internally (might be by ice)*/
 
 };
 
@@ -438,6 +440,9 @@ void linphone_core_stop_waiting(LinphoneCore *lc);
 int linphone_core_proceed_with_invite_if_ready(LinphoneCore *lc, LinphoneCall *call, LinphoneProxyConfig *dest_proxy);
 int linphone_core_start_invite(LinphoneCore *lc, LinphoneCall *call, const LinphoneAddress* destination/* = NULL if to be taken from the call log */);
 int linphone_core_restart_invite(LinphoneCore *lc, LinphoneCall *call);
+/*
+ * param automatic_offering aims is to take into account previous answer for video in case of automatic re-invite.
+ *  Purpose is to avoid to re-ask video previously declined */
 int linphone_core_start_update_call(LinphoneCore *lc, LinphoneCall *call);
 int linphone_core_start_accept_call_update(LinphoneCore *lc, LinphoneCall *call, LinphoneCallState next_state, const char *state_info);
 void linphone_core_notify_incoming_call(LinphoneCore *lc, LinphoneCall *call);
@@ -583,6 +588,7 @@ typedef struct sip_config
 	bool_t auto_net_state_mon;
 	bool_t tcp_tls_keepalive;
 	bool_t vfu_with_info; /*use to enable vfu request using sip info*/
+	bool_t save_auth_info; // if true, auth infos will be write in the config file when they are added to the list
 } sip_config_t;
 
 typedef struct rtp_config

@@ -432,7 +432,11 @@ static void call_ringing(SalOp *h){
 		linphone_call_set_state(call,LinphoneCallOutgoingRinging,"Remote ringing");
 	}else{
 		/*accept early media */
-		if (call->audiostream && audio_stream_started(call->audiostream)){
+		if ((call->audiostream && audio_stream_started(call->audiostream))
+#ifdef VIDEO_ENABLED
+			|| (call->videostream && video_stream_started(call->videostream))
+#endif
+			) {
 			/*streams already started */
 			try_early_media_forking(call,md);
 			#ifdef VIDEO_ENABLED
@@ -487,8 +491,6 @@ static void call_accepted(SalOp *op){
 #endif //BUILD_UPNP
 
 	md=sal_call_get_final_media_description(op);
-	if (md) /*make sure re-invite will not propose video again*/
-		call->params->has_video &= linphone_core_media_description_contains_video_stream(md);
 
 	switch (call->state){
 		case LinphoneCallOutgoingProgress:

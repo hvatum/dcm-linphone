@@ -22,34 +22,16 @@
 
 
 
-#include "CUnit/Basic.h"
+#include "bc_tester_utils.h"
 #include "linphonecore.h"
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
-typedef void (*test_function_t)(void);
-typedef int (*test_suite_function_t)(const char *name);
-
-typedef struct {
-	const char *name;
-	test_function_t func;
-} test_t;
-
-typedef struct {
-	const char *name;
-	CU_InitializeFunc init_func;
-	CU_CleanupFunc cleanup_func;
-	int nb_tests;
-	test_t *tests;
-} test_suite_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern const char *liblinphone_tester_file_prefix;
-extern const char *liblinphone_tester_writable_dir_prefix;
 extern test_suite_t setup_test_suite;
 extern test_suite_t register_test_suite;
 extern test_suite_t call_test_suite;
@@ -71,25 +53,7 @@ extern test_suite_t multicast_call_test_suite;
 extern test_suite_t multi_call_test_suite;
 
 
-extern int liblinphone_tester_nb_test_suites(void);
-extern int liblinphone_tester_nb_tests(const char *suite_name);
-extern const char * liblinphone_tester_test_suite_name(int suite_index);
-extern int liblinphone_tester_test_suite_index(const char *suite_name);
-extern void liblinphone_tester_list_suites();
-extern void liblinphone_tester_list_suite_tests(const char *suite_name);
-extern const char * liblinphone_tester_test_name(const char *suite_name, int test_index);
-extern int liblinphone_tester_test_index(const char *suite_name, const char *test_name);
-extern void liblinphone_tester_init(void);
-extern void liblinphone_tester_uninit(void);
-extern int liblinphone_tester_run_tests(const char *suite_name, const char *test_name);
-extern void liblinphone_tester_set_fileprefix(const char* file_prefix);
-extern void liblinphone_tester_set_writable_dir_prefix(const char* writable_dir_prefix);
 extern int liblinphone_tester_ipv6_available(void);
-
-
-extern        void liblinphone_tester_enable_xml( bool_t enable );
-extern        void liblinphone_tester_set_xml_output(const char *xml_path );
-extern const char* liblinphone_tester_get_xml_output(void);
 
 /**
  * @brief Tells the tester whether or not to clean the accounts it has created between runs.
@@ -167,6 +131,7 @@ typedef struct _stats {
 	int number_of_LinphoneMessageInProgress;
 	int number_of_LinphoneMessageDelivered;
 	int number_of_LinphoneMessageNotDelivered;
+	int number_of_LinphoneMessageFileTransferDone;
 	int number_of_LinphoneIsComposingActiveReceived;
 	int number_of_LinphoneIsComposingIdleReceived;
 	int progress_of_LinphoneFileTransfer;
@@ -237,11 +202,12 @@ typedef struct _stats {
 	char * dtmf_list_received;
 	int dtmf_count;
 
+	int number_of_LinphoneCallStatsUpdated;
 	int number_of_rtcp_sent;
 	int number_of_rtcp_received;
 
 	int number_of_video_windows_created;
-	
+
 	int number_of_LinphoneFileTransferDownloadSuccessful;
 	int number_of_LinphoneCoreLogCollectionUploadStateDelivered;
 	int number_of_LinphoneCoreLogCollectionUploadStateNotDelivered;
@@ -265,6 +231,11 @@ typedef struct _LinphoneCallTestParams {
 	bool_t sdp_simulate_error;
 } LinphoneCallTestParams;
 
+
+void liblinphone_tester_add_suites();
+
+LinphoneCoreManager* linphone_core_manager_init(const char* rc_file);
+void linphone_core_manager_start(LinphoneCoreManager *mgr, const char* rc_file, int check_for_proxies);
 LinphoneCoreManager* linphone_core_manager_new2(const char* rc_file, int check_for_proxies);
 LinphoneCoreManager* linphone_core_manager_new(const char* rc_file);
 void linphone_core_manager_stop(LinphoneCoreManager *mgr);
@@ -324,10 +295,6 @@ void linphone_core_manager_check_accounts(LinphoneCoreManager *m);
 void account_manager_destroy(void);
 LinphoneCore* configure_lc_from(LinphoneCoreVTable* v_table, const char* path, const char* file, void* user_data);
 void liblinphone_tester_enable_ipv6(bool_t enabled);
-#ifdef ANDROID
-void cunit_android_trace_handler(int level, const char *fmt, va_list args) ;
-#endif
-int  liblinphone_tester_fprintf(FILE * stream, const char * format, ...);
 void linphone_call_cb(LinphoneCall *call,void * user_data);
 void call_paused_resumed_base(bool_t multicast);
 void simple_call_base(bool_t enable_multicast_recv_side);
