@@ -1291,15 +1291,15 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 	}
         else if (strcmp(arg1, "use")==0 && arg2)
 	{
+                const char *devname;
 		if (strcmp(arg2, "files")==0)
 		{
 			linphonec_out("Using wav files instead of soundcard.\n");
 			linphone_core_use_files(lc,TRUE);
 			return 1;
 		}
-
 		index=atoi(arg2); /* FIXME: handle not-a-number */
-		const char *devname=index_to_devname(lc,index);
+		devname=index_to_devname(lc,index);
 		if (devname!=NULL){
 			linphone_core_set_ringer_device(lc,devname);
 			linphone_core_set_playback_device(lc,devname);
