@@ -94,7 +94,16 @@ LpItem * lp_item_new(const char *key, const char *value){
 
 LpItem * lp_comment_new(const char *comment){
 	LpItem *item=lp_new0(LpItem,1);
+	char* pos = NULL;
 	item->value=ortp_strdup(comment);
+
+	pos=strchr(item->value,'\r');
+	if (pos==NULL)
+		pos=strchr(item->value,'\n');
+	
+	if(pos) {
+		*pos='\0'; /*replace the '\n' */
+	}
 	item->is_comment=TRUE;
 	return item;
 }
@@ -567,7 +576,7 @@ void lp_config_set_float(LpConfig *lpconfig,const char *section, const char *key
 
 void lp_item_write(LpItem *item, FILE *file){
 	if (item->is_comment)
-		fprintf(file,"%s",item->value);
+		fprintf(file,"%s\n",item->value);
 	else if (item->value && item->value[0] != '\0' )
 		fprintf(file,"%s=%s\n",item->key,item->value);
 	else {
@@ -711,6 +720,7 @@ static char *_lp_config_dirname(char *path) {
 }
 
 void lp_config_write_relative_file(const LpConfig *lpconfig, const char *filename, const char *data) {
+	if (lpconfig->filename == NULL) return;
 	if(strlen(data) > 0) {
 		char *dir = _lp_config_dirname(lpconfig->filename);
 		char *filepath = ms_strdup_printf("%s/%s", dir, filename);

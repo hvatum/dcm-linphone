@@ -532,6 +532,23 @@ static void fmtp_edited(GtkCellRendererText *renderer, gchar *path, gchar *new_t
 	}
 }
 
+static void bitrate_edited(GtkCellRendererText *renderer, gchar *path, gchar *new_text, gpointer userdata){
+	GtkListStore *store=(GtkListStore*)userdata;
+	GtkTreeIter iter;
+	float newbitrate=0;
+	
+	if (!new_text) return;
+	
+	if (sscanf(new_text, "%f", &newbitrate)!=1) return;
+
+	if (gtk_tree_model_get_iter_from_string(GTK_TREE_MODEL(store),&iter,path)){
+		PayloadType *pt;
+		gtk_list_store_set(store,&iter,CODEC_BITRATE,newbitrate,-1);
+		gtk_tree_model_get(GTK_TREE_MODEL(store),&iter,CODEC_PRIVDATA,&pt,-1);
+		linphone_core_set_payload_type_bitrate(linphone_gtk_get_core(), pt, (int)newbitrate);
+	}
+}
+
 static void linphone_gtk_init_codec_list(GtkTreeView *listview){
 	GtkCellRenderer *renderer;
 	GtkTreeViewColumn *column;
@@ -571,7 +588,9 @@ static void linphone_gtk_init_codec_list(GtkTreeView *listview){
                                                    renderer,
                                                    "text", CODEC_BITRATE,
 						"foreground",CODEC_COLOR,
+						"editable",TRUE,
                                                    NULL);
+	g_signal_connect(G_OBJECT(renderer),"edited",G_CALLBACK(bitrate_edited),store);
 	gtk_tree_view_append_column (listview, column);
 	renderer = gtk_cell_renderer_text_new ();
 	column = gtk_tree_view_column_new_with_attributes (_("Parameters"),
@@ -1583,7 +1602,8 @@ void linphone_gtk_show_parameters(void){
 	                         linphone_core_adaptive_rate_control_enabled(lc));
 
 	/* CALL PARAMS CONFIG */
-	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(linphone_gtk_get_widget(pb, "auto_answer")), linphone_gtk_get_ui_config_int("auto_answer", 0));
+	gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(linphone_gtk_get_widget(pb, "auto_answer_checkbox")), linphone_gtk_get_ui_config_int("auto_answer", 0));
+	gtk_spin_button_set_value(GTK_SPIN_BUTTON(linphone_gtk_get_widget(pb, "auto_answer_delay_spinbutton")), linphone_gtk_get_ui_config_int("auto_answer_delay", 2000));
 
 	/* UI CONFIG */
 	linphone_gtk_fill_langs(pb);
@@ -1777,4 +1797,9 @@ void linphone_gtk_dscp_edit_response(GtkWidget *dialog, guint response_id){
 void linphone_gtk_enable_auto_answer(GtkToggleButton *checkbox, gpointer user_data) {
 	gboolean auto_answer_enabled = gtk_toggle_button_get_active(checkbox);
 	linphone_gtk_set_ui_config_int("auto_answer", auto_answer_enabled ? 1 : 0);
+}
+
+void linphone_gtk_auto_answer_delay_changed(GtkSpinButton *spinbutton, gpointer user_data) {
+	int delay = gtk_spin_button_get_value(spinbutton);
+	linphone_gtk_set_ui_config_int("auto_answer_delay", delay);
 }

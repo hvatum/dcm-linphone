@@ -43,7 +43,7 @@ static const char EC_STATE_STORE[] = ".linphone.ecstate";
 static void linphone_call_stats_uninit(LinphoneCallStats *stats);
 
 #ifdef VIDEO_ENABLED
-static MSWebCam *get_nowebcam_device(){
+MSWebCam *get_nowebcam_device(){
 	return ms_web_cam_manager_get_cam(ms_web_cam_manager_get(),"StaticImage: Static picture");
 }
 #endif
@@ -555,26 +555,30 @@ static void transfer_already_assigned_payload_types(SalMediaDescription *old, Sa
 }
 
 static const char *linphone_call_get_bind_ip_for_stream(LinphoneCall *call, int stream_index){
-	const char *bind_ip=call->af==AF_INET6 ? "::0" : "0.0.0.0";
+	const char *bind_ip = lp_config_get_string(call->core->config,"rtp","bind_address",call->af==AF_INET6 ? "::0" : "0.0.0.0");
 
 	if (stream_index<2 && call->media_ports[stream_index].multicast_ip[0]!='\0'){
 		if (call->dir==LinphoneCallOutgoing){
 			/*as multicast sender, we must decide a local interface to use to send multicast, and bind to it*/
-			bind_ip=call->localip;
+			bind_ip=call->media_localip;
 		}
 	}
 	return bind_ip;
 }
 
 static const char *linphone_call_get_public_ip_for_stream(LinphoneCall *call, int stream_index){
-	const char *public_ip=call->localip;
+	const char *public_ip=call->media_localip;
 
 	if (stream_index<2 && call->media_ports[stream_index].multicast_ip[0]!='\0')
 		public_ip=call->media_ports[stream_index].multicast_ip;
 	return public_ip;
 }
 
-void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *call){
+void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *call) {
+	linphone_call_make_local_media_description_with_params(lc, call, call->params);
+}
+
+void linphone_call_make_local_media_description_with_params(LinphoneCore *lc, LinphoneCall *call, LinphoneCallParams *params) {
 	MSList *l;
 	SalMediaDescription *old_md=call->localdesc;
 	int i;
@@ -596,9 +600,9 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 		md->streams[1].multicast_role = SalMulticastSender;
 	}
 
-	subject=linphone_call_params_get_session_name(call->params);
+	subject=linphone_call_params_get_session_name(params);
 
-	linphone_core_adapt_to_network(lc,call->ping_time,call->params);
+	linphone_core_adapt_to_network(lc,call->ping_time,params);
 
 	if (call->dest_proxy)
 		me=linphone_proxy_config_get_identity(call->dest_proxy);
@@ -610,12 +614,13 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	md->session_ver=(old_md ? (old_md->session_ver+1) : (rand() & 0xfff));
 	md->nb_streams=(call->biggestdesc ? call->biggestdesc->nb_streams : 1);
 
-	strncpy(md->addr,call->localip,sizeof(md->addr));
-	strncpy(md->username,linphone_address_get_username(addr),sizeof(md->username));
+	strncpy(md->addr,call->media_localip,sizeof(md->addr));
+	if (linphone_address_get_username(addr)) /*might be null in case of identity without userinfo*/
+		strncpy(md->username,linphone_address_get_username(addr),sizeof(md->username));
 	if (subject) strncpy(md->name,subject,sizeof(md->name));
 
-	if (call->params->down_bw)
-		md->bandwidth=call->params->down_bw;
+	if (params->down_bw)
+		md->bandwidth=params->down_bw;
 	else md->bandwidth=linphone_core_get_download_bandwidth(lc);
 
 	/*set audio capabilities */
@@ -624,14 +629,14 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 	strncpy(md->streams[0].name,"Audio",sizeof(md->streams[0].name)-1);
 	md->streams[0].rtp_port=call->media_ports[0].rtp_port;
 	md->streams[0].rtcp_port=call->media_ports[0].rtcp_port;
-	md->streams[0].proto=get_proto_from_call_params(call->params);
-	md->streams[0].dir=get_audio_dir_from_call_params(call->params);
+	md->streams[0].proto=get_proto_from_call_params(params);
+	md->streams[0].dir=get_audio_dir_from_call_params(params);
 	md->streams[0].type=SalAudio;
-	if (call->params->down_ptime)
-		md->streams[0].ptime=call->params->down_ptime;
+	if (params->down_ptime)
+		md->streams[0].ptime=params->down_ptime;
 	else
 		md->streams[0].ptime=linphone_core_get_download_ptime(lc);
-	codec_hints.bandwidth_limit=call->params->audio_bw;
+	codec_hints.bandwidth_limit=params->audio_bw;
 	codec_hints.max_codecs=-1;
 	codec_hints.previously_used=old_md ? old_md->streams[0].already_assigned_payloads : NULL;
 	l=make_codec_list(lc, &codec_hints, SalAudio, lc->codecs_conf.audio_codecs);
@@ -647,14 +652,14 @@ void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *
 		ms_warning("Cannot get audio local ssrc for call [%p]",call);
 	nb_active_streams++;
 
-	if (call->params->has_video && (!call->params->internal_call_update || !call->current_params->video_declined)){
+	if (params->has_video && (!params->internal_call_update || !call->current_params->video_declined)){
 		strncpy(md->streams[1].rtp_addr,linphone_call_get_public_ip_for_stream(call,1),sizeof(md->streams[1].rtp_addr));
 		strncpy(md->streams[1].rtcp_addr,linphone_call_get_public_ip_for_stream(call,1),sizeof(md->streams[1].rtcp_addr));
 		strncpy(md->streams[1].name,"Video",sizeof(md->streams[1].name)-1);
 		md->streams[1].rtp_port=call->media_ports[1].rtp_port;
 		md->streams[1].rtcp_port=call->media_ports[1].rtcp_port;
 		md->streams[1].proto=md->streams[0].proto;
-		md->streams[1].dir=get_video_dir_from_call_params(call->params);
+		md->streams[1].dir=get_video_dir_from_call_params(params);
 		md->streams[1].type=SalVideo;
 		codec_hints.bandwidth_limit=0;
 		codec_hints.max_codecs=-1;
@@ -819,7 +824,9 @@ static void linphone_call_init_common(LinphoneCall *call, LinphoneAddress *from,
 
 	linphone_call_init_stats(&call->stats[LINPHONE_CALL_STATS_AUDIO], LINPHONE_CALL_STATS_AUDIO);
 	linphone_call_init_stats(&call->stats[LINPHONE_CALL_STATS_VIDEO], LINPHONE_CALL_STATS_VIDEO);
-
+#ifdef VIDEO_ENABLED
+	call->cam = call->core->video_conf.device;
+#endif
 }
 
 void linphone_call_init_stats(LinphoneCallStats *stats, int type) {
@@ -903,18 +910,30 @@ static void linphone_call_get_local_ip(LinphoneCall *call, const LinphoneAddress
 	}
 	if (linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseNatAddress
 		&& (ip=linphone_core_get_nat_address_resolved(call->core))!=NULL){
-		strncpy(call->localip,ip,LINPHONE_IPADDR_SIZE);
+		strncpy(call->media_localip,ip,LINPHONE_IPADDR_SIZE);
+		strncpy(call->sig_localip,ip,LINPHONE_IPADDR_SIZE);
 		return;
 	}
 #ifdef BUILD_UPNP
 	else if (call->core->upnp != NULL && linphone_core_get_firewall_policy(call->core)==LinphonePolicyUseUpnp &&
 			linphone_upnp_context_get_state(call->core->upnp) == LinphoneUpnpStateOk) {
 		ip = linphone_upnp_context_get_external_ipaddress(call->core->upnp);
-		strncpy(call->localip,ip,LINPHONE_IPADDR_SIZE);
+		strncpy(call->media_localip,ip,LINPHONE_IPADDR_SIZE);
+		strncpy(call->sig_localip,ip,LINPHONE_IPADDR_SIZE);
 		return;
 	}
 #endif //BUILD_UPNP
-	linphone_core_get_local_ip(call->core, af, dest, call->localip);
+	/*first nominal use case*/
+	linphone_core_get_local_ip(call->core, af, dest, call->media_localip);
+	strncpy(call->sig_localip,call->media_localip,LINPHONE_IPADDR_SIZE);
+
+	/*next, sometime, override from config*/
+	if ((ip=lp_config_get_string(call->core->config,"rtp","bind_address",NULL)))
+		strncpy(call->media_localip,ip,LINPHONE_IPADDR_SIZE);
+	if ((ip=lp_config_get_string(call->core->config,"sip","bind_address",NULL)))
+		strncpy(call->sig_localip,ip,LINPHONE_IPADDR_SIZE);
+
+	return;
 }
 
 static void linphone_call_destroy(LinphoneCall *obj);
@@ -1013,6 +1032,8 @@ LinphoneCall * linphone_call_new_incoming(LinphoneCore *lc, LinphoneAddress *fro
 	call->op=op;
 	call->core=lc;
 	linphone_call_incoming_select_ip_version(call);
+
+	sal_op_cnx_ip_to_0000_if_sendonly_enable(op,lp_config_get_default_int(lc->config,"sip","cnx_ip_to_0000_if_sendonly_enabled",0));
 
 	if (lc->sip_conf.ping_with_options){
 #ifdef BUILD_UPNP
@@ -1660,16 +1681,17 @@ LinphoneCall *linphone_call_get_replaced_call(LinphoneCall *call){
 **/
 void linphone_call_enable_camera (LinphoneCall *call, bool_t enable){
 #ifdef VIDEO_ENABLED
+	call->camera_enabled=enable;
 	if ((call->state==LinphoneCallStreamsRunning || call->state==LinphoneCallOutgoingEarlyMedia || call->state==LinphoneCallIncomingEarlyMedia)
-		&& call->videostream!=NULL ){
-		LinphoneCore *lc=call->core;
-		MSWebCam *nowebcam=get_nowebcam_device();
-		if (call->camera_enabled!=enable && lc->video_conf.device!=nowebcam){
-			video_stream_change_camera(call->videostream,
-						 enable ? lc->video_conf.device : nowebcam);
+		&& call->videostream!=NULL && video_stream_started(call->videostream) ){
+		if (video_stream_get_camera(call->videostream) != linphone_call_get_video_device(call)) {
+			const char *cur_cam, *new_cam;
+			cur_cam = video_stream_get_camera(call->videostream) ? ms_web_cam_get_name(video_stream_get_camera(call->videostream)) : "NULL";
+			new_cam = linphone_call_get_video_device(call) ? ms_web_cam_get_name(linphone_call_get_video_device(call)) : "NULL";
+			ms_message("Switching video cam from [%s] to [%s] on call [%p]"	, cur_cam, new_cam, call);
+			video_stream_change_camera(call->videostream, linphone_call_get_video_device(call));
 		}
 	}
-	call->camera_enabled=enable;
 #endif
 }
 
@@ -1838,7 +1860,7 @@ int linphone_call_prepare_ice(LinphoneCall *call, bool_t incoming_offer){
 	if ((linphone_core_get_firewall_policy(call->core) == LinphonePolicyUseIce) && (call->ice_session != NULL)){
 		if (incoming_offer){
 			remote=sal_call_get_remote_media_description(call->op);
-			has_video=call->params->has_video && linphone_core_media_description_contains_video_stream(remote);
+			has_video=linphone_core_video_enabled(call->core) && linphone_core_media_description_contains_video_stream(remote);
 		}else has_video=call->params->has_video;
 
 		_linphone_call_prepare_ice_for_stream(call,0,TRUE);
@@ -2362,7 +2384,7 @@ void static start_dtls_on_all_streams(LinphoneCall *call) {
 	SalMediaDescription *remote_desc = sal_call_get_remote_media_description(call->op);
 	SalMediaDescription *result_desc = sal_call_get_final_media_description(call->op);
 	if( remote_desc == NULL || result_desc == NULL ){
-		ms_warning("Invalid remote or result media description, disabling DTLS");
+		/* this can happen in some tricky cases (early-media without SDP in the 200). In that case, simply skip DTLS code */
 		return;
 	}
 
@@ -2397,7 +2419,7 @@ void static set_dtls_fingerprint_on_all_streams(LinphoneCall *call) {
 	SalMediaDescription *result_desc = sal_call_get_final_media_description(call->op);
 
 	if( remote_desc == NULL || result_desc == NULL ){
-		ms_warning("Invalid remote or final media desc, aborting DTLS fingerprinting");
+		/* this can happen in some tricky cases (early-media without SDP in the 200). In that case, simply skip DTLS code */
 		return;
 	}
 
@@ -2579,9 +2601,8 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 
 		if (used_pt!=-1){
 			VideoStreamDir dir=VideoStreamSendRecv;
-			MSWebCam *cam=lc->video_conf.device;
 			bool_t is_inactive=FALSE;
-
+			MSWebCam *cam;
 			call->current_params->video_codec = rtp_profile_get_payload(call->video_profile, used_pt);
 			call->current_params->has_video=TRUE;
 
@@ -2609,10 +2630,6 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 				else
 					dir=VideoStreamSendOnly;
 			} else if (vstream->dir==SalStreamSendOnly && lc->video_conf.capture ){
-				if (local_st_desc->dir==SalStreamSendOnly){
-					/* localdesc stream dir to SendOnly is when we want to put on hold, so use nowebcam in this case*/
-					cam=get_nowebcam_device();
-				}
 				dir=VideoStreamSendOnly;
 			}else if (vstream->dir==SalStreamRecvOnly && lc->video_conf.display ){
 				dir=VideoStreamRecvOnly;
@@ -2628,8 +2645,10 @@ static void linphone_call_start_video_stream(LinphoneCall *call, bool_t all_inpu
 				/*either inactive or incompatible with local capabilities*/
 				is_inactive=TRUE;
 			}
-			if (call->camera_enabled==FALSE || all_inputs_muted){
+			if (all_inputs_muted){
 				cam=get_nowebcam_device();
+			} else {
+				cam = linphone_call_get_video_device(call);
 			}
 			if (!is_inactive){
 				if (sal_stream_description_has_srtp(vstream) == TRUE) {
@@ -2682,6 +2701,7 @@ static void setZrtpCryptoTypesParameters(MSZrtpParams *params, LinphoneCore *lc)
 {
 	int i;
 	const MSCryptoSuite *srtp_suites;
+	MsZrtpCryptoTypesCount ciphersCount, authTagsCount;
 
 	if (params == NULL) return;
 	if (lc == NULL) return;
@@ -2718,7 +2738,18 @@ static void setZrtpCryptoTypesParameters(MSZrtpParams *params, LinphoneCore *lc)
 		}
 	}
 
-	params->keyAgreementsCount = linphone_core_get_zrtp_key_agreements(lc, params->keyAgreements);
+	/* linphone_core_get_srtp_crypto_suites is used to determine sensible defaults; here each can be overridden */
+	ciphersCount = linphone_core_get_zrtp_cipher_suites(lc, params->ciphers); /* if not present in config file, params->ciphers is not modified */
+	if (ciphersCount!=0) { /* use zrtp_cipher_suites config only when present, keep config from srtp_crypto_suite otherwise */
+		params->ciphersCount = ciphersCount;
+	}
+	params->hashesCount = linphone_core_get_zrtp_hash_suites(lc, params->hashes);
+	authTagsCount = linphone_core_get_zrtp_auth_suites(lc, params->authTags); /* if not present in config file, params->authTags is not modified */
+	if (authTagsCount!=0) {
+		params->authTagsCount = authTagsCount; /* use zrtp_auth_suites config only when present, keep config from srtp_crypto_suite otherwise */
+	}
+	params->sasTypesCount = linphone_core_get_zrtp_sas_suites(lc, params->sasTypes);
+	params->keyAgreementsCount = linphone_core_get_zrtp_key_agreement_suites(lc, params->keyAgreements);
 }
 
 void linphone_call_start_media_streams(LinphoneCall *call, bool_t all_inputs_muted, bool_t send_ringbacktone){
@@ -3724,7 +3755,7 @@ void linphone_call_zoom_video(LinphoneCall* call, float zoom_factor, float* cx, 
 static LinphoneAddress *get_fixed_contact(LinphoneCore *lc, LinphoneCall *call , LinphoneProxyConfig *dest_proxy){
 	LinphoneAddress *ctt=NULL;
 	LinphoneAddress *ret=NULL;
-	const char *localip=call->localip;
+	//const char *localip=call->localip;
 
 	/* first use user's supplied ip address if asked*/
 	if (linphone_core_get_firewall_policy(lc)==LinphonePolicyUseNatAddress){
@@ -3747,9 +3778,9 @@ static LinphoneAddress *get_fixed_contact(LinphoneCore *lc, LinphoneCall *call ,
 		ctt=linphone_core_get_primary_contact_parsed(lc);
 		if (ctt!=NULL){
 			/*otherwise use supplied localip*/
-			linphone_address_set_domain(ctt,localip);
-			linphone_address_set_port(ctt,linphone_core_get_sip_port(lc));
-			ms_message("Contact has been fixed using local ip"/* to %s",ret*/);
+			linphone_address_set_domain(ctt,NULL/*localip*/);
+			linphone_address_set_port(ctt,-1/*linphone_core_get_sip_port(lc)*/);
+			ms_message("Contact has not been fixed stack will do"/* to %s",ret*/);
 			ret=ctt;
 		}
 	}
@@ -3882,3 +3913,11 @@ void linphone_call_set_native_video_window_id(LinphoneCall *call, unsigned long 
 	}
 #endif
 }
+#ifdef VIDEO_ENABLED
+MSWebCam *linphone_call_get_video_device(const LinphoneCall *call) {
+	if (call->camera_enabled==FALSE)
+		return get_nowebcam_device();
+	else
+		return call->cam;
+}
+#endif

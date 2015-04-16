@@ -263,17 +263,14 @@ LinphoneCoreManager* linphone_core_manager_init(const char* rc_file) {
 	{
 		MSWebCam *cam;
 
-#ifdef _MSC_VER
-		extern __declspec(dllimport) MSWebCamDesc mire_desc;
-#else
-		extern MSWebCamDesc mire_desc;
-#endif
-
 		cam = ms_web_cam_manager_get_cam(ms_web_cam_manager_get(), "Mire: Mire (synthetic moving picture)");
 
 		if (cam == NULL) {
-			cam=ms_web_cam_new(&mire_desc);
-			ms_web_cam_manager_add_cam(ms_web_cam_manager_get(),cam);
+			MSWebCamDesc *desc = ms_mire_webcam_desc_get();
+			if (desc){
+				cam=ms_web_cam_new(desc);
+				ms_web_cam_manager_add_cam(ms_web_cam_manager_get(), cam);
+			}
 		}
 	}
 #endif
@@ -289,6 +286,7 @@ LinphoneCoreManager* linphone_core_manager_init(const char* rc_file) {
 		linphone_core_set_record_file(mgr->lc,recordpath);
 		ms_free(recordpath);
 	}
+	linphone_core_set_user_certificates_path(mgr->lc,bc_tester_writable_dir_prefix);
 
 	if (rc_path) ms_free(rc_path);
 

@@ -8,9 +8,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: linphone-gtk\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-03-23 16:57+0100\n"
-"PO-Revision-Date: 2015-03-23 15:58+0000\n"
-"Last-Translator: Gautier Pelloux-Prayer <gautier.pelloux@gmail.com>\n"
+"POT-Creation-Date: 2015-03-27 14:40+0100\n"
+"PO-Revision-Date: 2015-03-27 13:40+0000\n"
+"Last-Translator: Belledonne Communications <support@belledonne-communications.com>\n"
 "Language-Team: Turkish (http://www.transifex.com/projects/p/linphone-gtk/language/tr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -87,10 +87,6 @@ msgstr ""
 #, c-format
 msgid "Couldn't find pixmap file: %s"
 msgstr ""
-
-#: ../gtk/chat.c:374 ../gtk/friendlist.c:924
-msgid "Invalid sip contact !"
-msgstr "Geçersiz sip bağlantısı !"
 
 #: ../gtk/main.c:136
 msgid "log to stdout some debug information while running."
@@ -192,7 +188,7 @@ msgstr "Linphone - görüntülü internet telefonu"
 msgid "%s (Default)"
 msgstr ""
 
-#: ../gtk/main.c:1978 ../coreapi/callbacks.c:1048
+#: ../gtk/main.c:1978 ../coreapi/callbacks.c:1057
 #, c-format
 msgid "We are transferred to %s"
 msgstr ""
@@ -205,6 +201,11 @@ msgstr ""
 
 #: ../gtk/main.c:2136
 msgid "A free SIP video-phone"
+msgstr ""
+
+#: ../gtk/main.c:2241
+#, c-format
+msgid "Hello\n"
 msgstr ""
 
 #: ../gtk/friendlist.c:505
@@ -231,6 +232,10 @@ msgstr "Söyleşi"
 #, c-format
 msgid "Search in %s directory"
 msgstr ""
+
+#: ../gtk/friendlist.c:924
+msgid "Invalid sip contact !"
+msgstr "Geçersiz sip bağlantısı !"
 
 #: ../gtk/friendlist.c:976
 #, c-format
@@ -1186,7 +1191,7 @@ msgid "Send DTMFs as SIP info"
 msgstr ""
 
 #: ../gtk/parameters.ui.h:14
-msgid "Use IPv6 instead of IPv4"
+msgid "Allow IPv6"
 msgstr ""
 
 #: ../gtk/parameters.ui.h:15
@@ -1374,58 +1379,58 @@ msgid "<b>Privacy</b>"
 msgstr ""
 
 #: ../gtk/parameters.ui.h:62
+msgid "Automatically answer when a call is received"
+msgstr ""
+
+#: ../gtk/parameters.ui.h:63
+msgid "<b>Auto-answer</b>"
+msgstr ""
+
+#: ../gtk/parameters.ui.h:64
 msgid "Manage SIP Accounts"
 msgstr "SİP Hesaplarını Yönet"
 
-#: ../gtk/parameters.ui.h:63 ../gtk/tunnel_config.ui.h:4
+#: ../gtk/parameters.ui.h:65 ../gtk/tunnel_config.ui.h:4
 msgid "Enable"
 msgstr "Etkinleştirme"
 
-#: ../gtk/parameters.ui.h:64 ../gtk/tunnel_config.ui.h:5
+#: ../gtk/parameters.ui.h:66 ../gtk/tunnel_config.ui.h:5
 msgid "Disable"
 msgstr "Devre dışı"
 
-#: ../gtk/parameters.ui.h:65
+#: ../gtk/parameters.ui.h:67
 msgid "<b>Codecs</b>"
 msgstr ""
 
-#: ../gtk/parameters.ui.h:66
+#: ../gtk/parameters.ui.h:68
 msgid "0 stands for \"unlimited\""
 msgstr ""
 
-#: ../gtk/parameters.ui.h:67
+#: ../gtk/parameters.ui.h:69
 msgid "Upload speed limit in Kbit/sec:"
 msgstr "Gönderim hız sınırı Kbit/saniye:"
 
-#: ../gtk/parameters.ui.h:68
+#: ../gtk/parameters.ui.h:70
 msgid "Download speed limit in Kbit/sec:"
 msgstr "İndirme hız sınırı Kbit/saniye:"
 
-#: ../gtk/parameters.ui.h:69
+#: ../gtk/parameters.ui.h:71
 msgid "Enable adaptive rate control"
 msgstr ""
 
-#: ../gtk/parameters.ui.h:70
+#: ../gtk/parameters.ui.h:72
 msgid ""
 "<i>Adaptive rate control is a technique to dynamically guess the available "
 "bandwidth during a call.</i>"
 msgstr ""
 
-#: ../gtk/parameters.ui.h:71
+#: ../gtk/parameters.ui.h:73
 msgid "<b>Bandwidth control</b>"
 msgstr ""
 
-#: ../gtk/parameters.ui.h:72
+#: ../gtk/parameters.ui.h:74
 msgid "Codecs"
 msgstr "Çözücüler"
-
-#: ../gtk/parameters.ui.h:73
-msgid "Automatically answer when a call is received"
-msgstr ""
-
-#: ../gtk/parameters.ui.h:74
-msgid "Call parameters"
-msgstr ""
 
 #: ../gtk/parameters.ui.h:75
 msgid "<b>Language</b>"
@@ -1694,24 +1699,24 @@ msgstr ""
 msgid "Ready"
 msgstr "Hazır"
 
-#: ../coreapi/linphonecore.c:2535
+#: ../coreapi/linphonecore.c:2534
 msgid "Configuring"
 msgstr "Yapılandırılıyor"
 
-#: ../coreapi/linphonecore.c:2709
+#: ../coreapi/linphonecore.c:2708
 msgid "Looking for telephone number destination..."
 msgstr ""
 
-#: ../coreapi/linphonecore.c:2711
+#: ../coreapi/linphonecore.c:2710
 msgid "Could not resolve this number."
 msgstr ""
 
 #. must be known at that time
-#: ../coreapi/linphonecore.c:2997
+#: ../coreapi/linphonecore.c:2996
 msgid "Contacting"
 msgstr "Bağlanıyor"
 
-#: ../coreapi/linphonecore.c:3002
+#: ../coreapi/linphonecore.c:3001
 msgid "Could not call"
 msgstr ""
 
@@ -1824,112 +1829,112 @@ msgstr ""
 msgid "Could not login as %s"
 msgstr ""
 
-#: ../coreapi/callbacks.c:419
+#: ../coreapi/callbacks.c:428
 msgid "Remote ringing."
 msgstr ""
 
-#: ../coreapi/callbacks.c:431
+#: ../coreapi/callbacks.c:440
 msgid "Remote ringing..."
 msgstr ""
 
-#: ../coreapi/callbacks.c:452
+#: ../coreapi/callbacks.c:461
 msgid "Early media."
 msgstr ""
 
-#: ../coreapi/callbacks.c:524
+#: ../coreapi/callbacks.c:533
 #, c-format
 msgid "Call with %s is paused."
 msgstr ""
 
-#: ../coreapi/callbacks.c:537
+#: ../coreapi/callbacks.c:546
 #, c-format
 msgid "Call answered by %s - on hold."
 msgstr ""
 
-#: ../coreapi/callbacks.c:547
+#: ../coreapi/callbacks.c:556
 msgid "Call resumed."
 msgstr ""
 
-#: ../coreapi/callbacks.c:551
+#: ../coreapi/callbacks.c:560
 #, c-format
 msgid "Call answered by %s."
 msgstr ""
 
-#: ../coreapi/callbacks.c:574
+#: ../coreapi/callbacks.c:583
 msgid "Incompatible, check codecs or security settings..."
 msgstr ""
 
-#: ../coreapi/callbacks.c:579 ../coreapi/callbacks.c:891
+#: ../coreapi/callbacks.c:588 ../coreapi/callbacks.c:900
 msgid "Incompatible media parameters."
 msgstr ""
 
-#: ../coreapi/callbacks.c:609
+#: ../coreapi/callbacks.c:618
 msgid "We have been resumed."
 msgstr ""
 
 #. we are being paused
-#: ../coreapi/callbacks.c:617
+#: ../coreapi/callbacks.c:626
 msgid "We are paused by other party."
 msgstr ""
 
 #. reINVITE and in-dialogs UPDATE go here
-#: ../coreapi/callbacks.c:651
+#: ../coreapi/callbacks.c:660
 msgid "Call is updated by remote."
 msgstr ""
 
-#: ../coreapi/callbacks.c:767
+#: ../coreapi/callbacks.c:776
 msgid "Call terminated."
 msgstr "Çağrı sonlandırıldı"
 
-#: ../coreapi/callbacks.c:795
+#: ../coreapi/callbacks.c:804
 msgid "User is busy."
 msgstr "Kullanıcı meşgul"
 
-#: ../coreapi/callbacks.c:796
+#: ../coreapi/callbacks.c:805
 msgid "User is temporarily unavailable."
 msgstr ""
 
 #. char *retrymsg=_("%s. Retry after %i minute(s).");
-#: ../coreapi/callbacks.c:798
+#: ../coreapi/callbacks.c:807
 msgid "User does not want to be disturbed."
 msgstr ""
 
-#: ../coreapi/callbacks.c:799
+#: ../coreapi/callbacks.c:808
 msgid "Call declined."
 msgstr "Çağrı reddedildi."
 
-#: ../coreapi/callbacks.c:814
+#: ../coreapi/callbacks.c:823
 msgid "Request timeout."
 msgstr "İstek zamanaşımına uğradı."
 
-#: ../coreapi/callbacks.c:845
+#: ../coreapi/callbacks.c:854
 msgid "Redirected"
 msgstr "Yeniden yönlendirildi"
 
-#: ../coreapi/callbacks.c:900
+#: ../coreapi/callbacks.c:909
 msgid "Call failed."
 msgstr "Arama başarısız"
 
-#: ../coreapi/callbacks.c:978
+#: ../coreapi/callbacks.c:987
 #, c-format
 msgid "Registration on %s successful."
 msgstr ""
 
-#: ../coreapi/callbacks.c:979
+#: ../coreapi/callbacks.c:988
 #, c-format
 msgid "Unregistration on %s done."
 msgstr ""
 
-#: ../coreapi/callbacks.c:997
+#: ../coreapi/callbacks.c:1006
 msgid "no response timeout"
 msgstr ""
 
-#: ../coreapi/callbacks.c:1000
+#: ../coreapi/callbacks.c:1009
 #, c-format
 msgid "Registration on %s failed: %s"
 msgstr ""
 
-#: ../coreapi/callbacks.c:1007
+#: ../coreapi/callbacks.c:1016
 msgid "Service unavailable, retrying"
 msgstr ""
 
@@ -1939,11 +1944,11 @@ msgstr ""
 msgid "Authentication token is %s"
 msgstr ""
 
-#: ../coreapi/linphonecall.c:1301
+#: ../coreapi/linphonecall.c:1305
 msgid "Call parameters were successfully modified."
 msgstr ""
 
-#: ../coreapi/linphonecall.c:3645
+#: ../coreapi/linphonecall.c:3659
 #, c-format
 msgid "You have missed %i call."
 msgid_plural "You have missed %i calls."

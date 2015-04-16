@@ -294,6 +294,8 @@ void linphone_gtk_compose_text(void) {
 	LinphoneChatRoom *cr=g_object_get_data(G_OBJECT(w),"cr");
 	if (cr) {
 		linphone_chat_room_compose(cr);
+		linphone_chat_room_mark_as_read(cr);
+		linphone_gtk_friend_list_update_chat_picture();
 	}
 }
 
@@ -357,26 +359,19 @@ void display_history_message(GtkWidget *chat_view,MSList *messages,const Linphon
 	}
 }
 
-void linphone_gtk_chat_add_contact(const LinphoneAddress *addr){
+static void linphone_gtk_chat_add_contact(const LinphoneAddress *addr){
 	LinphoneFriend *lf=NULL;
-	LinphoneAddress *fixed_uri=NULL;
 	gboolean show_presence=FALSE;
 	char *uri=linphone_address_as_string(addr);
 
 	lf=linphone_friend_new_with_address(uri);
 	ms_free(uri);
 
-	linphone_friend_set_inc_subscribe_policy(lf,LinphoneSPDeny);
+	linphone_friend_set_inc_subscribe_policy(lf,LinphoneSPWait);
 	linphone_friend_send_subscribe(lf,show_presence);
 
-	fixed_uri = linphone_core_interpret_url(linphone_gtk_get_core(),uri);
-	if (fixed_uri==NULL){
-		linphone_gtk_display_something(GTK_MESSAGE_WARNING,_("Invalid sip contact !"));
-		return ;
-	}
 	linphone_friend_set_address(lf,addr);
 	linphone_core_add_friend(linphone_gtk_get_core(),lf);
-	linphone_address_destroy(fixed_uri);
 	linphone_gtk_show_friends();
 }
 
@@ -429,7 +424,7 @@ GtkWidget* linphone_gtk_init_chatroom(LinphoneChatRoom *cr, const LinphoneAddres
 	display_history_message(chat_view,messages,with);
 	button = linphone_gtk_get_widget(chat_view,"send");
 	g_signal_connect_swapped(G_OBJECT(button),"clicked",(GCallback)linphone_gtk_send_text,NULL);
-	
+
 	g_signal_connect_swapped(G_OBJECT(entry),"activate",(GCallback)linphone_gtk_send_text,NULL);
 	g_signal_connect_swapped(G_OBJECT(entry),"changed",(GCallback)linphone_gtk_compose_text,NULL);
 	g_signal_connect(G_OBJECT(notebook),"switch_page",(GCallback)linphone_gtk_notebook_tab_select,NULL);

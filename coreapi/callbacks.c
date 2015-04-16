@@ -147,7 +147,7 @@ void linphone_core_update_streams(LinphoneCore *lc, LinphoneCall *call, SalMedia
 		/* we already started media: check if we really need to restart it*/
 		if (oldmd){
 			int md_changed = media_parameters_changed(call, oldmd, new_md);
-			if ((md_changed & SAL_MEDIA_DESCRIPTION_CODEC_CHANGED)){
+			if ((md_changed & (SAL_MEDIA_DESCRIPTION_CODEC_CHANGED|SAL_MEDIA_DESCRIPTION_STREAMS_CHANGED))){
 				ms_message("Media descriptions are different, need to restart the streams.");
 			} else if ( call->playing_ringbacktone) {
 				ms_message("Playing ringback tone, will restart the streams.");
@@ -161,7 +161,7 @@ void linphone_core_update_streams(LinphoneCore *lc, LinphoneCall *call, SalMedia
 							linphone_core_enable_mic(lc, linphone_core_mic_enabled(lc));
 #ifdef VIDEO_ENABLED
 						if (call->videostream && call->camera_enabled)
-							video_stream_change_camera(call->videostream,lc->video_conf.device );
+							video_stream_change_camera(call->videostream,linphone_call_get_video_device(call));
 #endif
 					}
 					/*FIXME ZRTP, might be restarted in any cases ? */
@@ -197,6 +197,15 @@ void linphone_core_update_streams(LinphoneCore *lc, LinphoneCall *call, SalMedia
 	if (call->params->real_early_media && call->state==LinphoneCallOutgoingEarlyMedia){
 		prepare_early_media_forking(call);
 	}
+#ifdef VIDEO_ENABLED
+	if (call->state==LinphoneCallPausing) {
+		/*change cam to noweb cam*/
+		call->cam = get_nowebcam_device();
+	} else if (call->state != LinphoneCallPaused) {
+		/*restaure web cam*/
+		call->cam = lc->video_conf.device;
+	}
+#endif /*VIDEO*/
 	linphone_call_start_media_streams(call,all_muted,send_ringbacktone);
 	if (call->state==LinphoneCallPausing && call->paused_by_app && ms_list_size(lc->calls)==1){
 		linphone_core_play_named_tone(lc,LinphoneToneCallOnHold);
@@ -611,12 +620,17 @@ static void call_resumed(LinphoneCore *lc, LinphoneCall *call){
 }
 
 static void call_paused_by_remote(LinphoneCore *lc, LinphoneCall *call){
+	LinphoneCallParams *params;
 	/*when we are paused, increment session id, because sdp is changed (a=recvonly appears)*/
 	linphone_call_increment_local_media_description(call);
 	/* we are being paused */
 	linphone_core_notify_display_status(lc,_("We are paused by other party."));
-	_linphone_core_accept_call_update(lc,call,NULL,LinphoneCallPausedByRemote,"Call paused by remote");
-
+	params = linphone_call_params_copy(call->params);
+	if (lp_config_get_int(lc->config, "sip", "inactive_video_on_pause", 0)) {
+		linphone_call_params_set_video_direction(params, LinphoneMediaDirectionInactive);
+	}
+	_linphone_core_accept_call_update(lc,call,params,LinphoneCallPausedByRemote,"Call paused by remote");
+	linphone_call_params_unref(params);
 }
 
 static void call_updated_by_remote(LinphoneCore *lc, LinphoneCall *call, bool_t is_update){

@@ -1,7 +1,7 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the PACKAGE package.
-#
+# 
 # Translators:
 # محيي الدين <tx99h4@hotmail.com>, 2014
 # محيي الدين <tx99h4@hotmail.com>, 2014-2015
@@ -9,17 +9,15 @@ msgid ""
 msgstr ""
 "Project-Id-Version: linphone-gtk\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-03-23 19:30+0100\n"
-"PO-Revision-Date: 2015-03-23 15:58+0000\n"
-"Last-Translator: Gautier Pelloux-Prayer <gautier.pelloux@gmail.com>\n"
-"Language-Team: Arabic (http://www.transifex.com/projects/p/linphone-gtk/"
-"language/ar/)\n"
-"Language: ar\n"
+"POT-Creation-Date: 2015-03-27 14:40+0100\n"
+"PO-Revision-Date: 2015-03-30 15:42+0000\n"
+"Last-Translator: محيي الدين <tx99h4@hotmail.com>\n"
+"Language-Team: Arabic (http://www.transifex.com/projects/p/linphone-gtk/language/ar/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
-"&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+"Language: ar\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 
 #: ../gtk/calllogs.c:148 ../gtk/friendlist.c:974
 #, c-format
@@ -79,9 +77,7 @@ msgstr[5] "%i ثانية"
 msgid ""
 "<small><i>%s</i>\t<i>Quality: %s</i></small>\n"
 "%s\t%s\t"
-msgstr ""
-"<small><i>%s</i>\t<i>الجودة : %s</i></small>\n"
-"%s\t%s\t"
+msgstr "<small><i>%s</i>\t<i>الجودة : %s</i></small>\n%s\t%s\t"
 
 #: ../gtk/calllogs.c:341
 #, c-format
@@ -100,10 +96,6 @@ msgstr "أنا"
 #, c-format
 msgid "Couldn't find pixmap file: %s"
 msgstr "أيقونة غير موجودة : %s"
-
-#: ../gtk/chat.c:374 ../gtk/friendlist.c:924
-msgid "Invalid sip contact !"
-msgstr "جهة اتصال sip غير صالحة !"
 
 #: ../gtk/main.c:136
 msgid "log to stdout some debug information while running."
@@ -127,10 +119,9 @@ msgstr "العنوان المُراد الاتصال به الآن"
 
 #: ../gtk/main.c:141
 msgid ""
-"Specifiy a working directory (should be the base of the installation, eg: c:"
-"\\Program Files\\Linphone)"
-msgstr ""
-"حدِّد مجلد العمل (الذي سيكون مجلد التثبيت، مثلا c:\\Program Files\\Linphone)"
+"Specifiy a working directory (should be the base of the installation, eg: "
+"c:\\Program Files\\Linphone)"
+msgstr "حدِّد مجلد العمل (الذي سيكون مجلد التثبيت، مثلا c:\\Program Files\\Linphone)"
 
 #: ../gtk/main.c:142
 msgid "Configuration file"
@@ -148,22 +139,16 @@ msgstr "شغِّل الاختبار الذاتي ثم اخرِجْ 0 إذا نج
 #, c-format
 msgid ""
 "%s would like to add you to his contact list.\n"
-"Would you allow him to see your presence status or add him to your contact "
-"list ?\n"
+"Would you allow him to see your presence status or add him to your contact list ?\n"
 "If you answer no, this person will be temporarily blacklisted."
-msgstr ""
-"%s يريد إضافتك إلى جهة اتصاله.\n"
-"هل تريد السماح له برؤية معلومات حضورك وكذا إضافته إلى جهة اتصالك أيضا ؟ إذا "
-"أجبت ب لا، سيُحظَر هذا الشخص مؤقتا."
+msgstr "%s يريد إضافتك إلى جهة اتصاله.\nهل تريد السماح له برؤية معلومات حضورك وكذا إضافته إلى جهة اتصالك أيضا ؟ إذا أجبت ب لا، سيُحظَر هذا الشخص مؤقتا."
 
 #: ../gtk/main.c:1136
 #, c-format
 msgid ""
 "Please enter your password for username <i>%s</i>\n"
 " at realm <i>%s</i>:"
-msgstr ""
-"ادخل كلمة السر ل  <i>%s</i>\n"
-" في نطاق <i>%s</i>:"
+msgstr "ادخل كلمة السر ل  <i>%s</i>\n في نطاق <i>%s</i>:"
 
 #: ../gtk/main.c:1257
 msgid "Call error"
@@ -212,7 +197,7 @@ msgstr "لِنْفُونْ - الهاتف المرئي عبر الإنترنت"
 msgid "%s (Default)"
 msgstr "%s (افتراضي)"
 
-#: ../gtk/main.c:1978 ../coreapi/callbacks.c:1048
+#: ../gtk/main.c:1978 ../coreapi/callbacks.c:1057
 #, c-format
 msgid "We are transferred to %s"
 msgstr "التحويل إلى %s"
@@ -221,9 +206,7 @@ msgstr "التحويل إلى %s"
 msgid ""
 "No sound cards have been detected on this computer.\n"
 "You won't be able to send or receive audio calls."
-msgstr ""
-"لا وجود للوحة الصوت على هذا الحاسوب.\n"
-"لن تتمكن من تلقي أو إجراء أي مكالمة."
+msgstr "لا وجود للوحة الصوت على هذا الحاسوب.\nلن تتمكن من تلقي أو إجراء أي مكالمة."
 
 #: ../gtk/main.c:2136
 msgid "A free SIP video-phone"
@@ -232,7 +215,7 @@ msgstr "هاتف SIP المرئي الحر"
 #: ../gtk/main.c:2241
 #, c-format
 msgid "Hello\n"
-msgstr ""
+msgstr "أهلا\n"
 
 #: ../gtk/friendlist.c:505
 msgid "Add to addressbook"
@@ -258,6 +241,10 @@ msgstr "محادثة"
 #, c-format
 msgid "Search in %s directory"
 msgstr "ابحث في دليل %s"
+
+#: ../gtk/friendlist.c:924
+msgid "Invalid sip contact !"
+msgstr "جهة اتصال sip غير صالحة !"
 
 #: ../gtk/friendlist.c:976
 #, c-format
@@ -405,9 +392,7 @@ msgstr "ZRTP"
 msgid ""
 "A more recent version is availalble from %s.\n"
 "Would you like to open a browser to download it ?"
-msgstr ""
-"يوجد إصدار حديث من طرف %s.\n"
-"هل تريد فتح المتصفح لتنزيله ؟"
+msgstr "يوجد إصدار حديث من طرف %s.\nهل تريد فتح المتصفح لتنزيله ؟"
 
 #: ../gtk/update.c:91
 msgid "You are running the lastest version."
@@ -448,9 +433,7 @@ msgstr[5] "عُثِر على %i جهة اتصال"
 msgid ""
 "Welcome!\n"
 "This assistant will help you to use a SIP account for your calls."
-msgstr ""
-"مرحبا !\n"
-"سيمكنك هذا المرشد من إعداد حسابك SIP لإجراء المكالمات."
+msgstr "مرحبا !\nسيمكنك هذا المرشد من إعداد حسابك SIP لإجراء المكالمات."
 
 #: ../gtk/setupwizard.c:43
 msgid "Create an account on linphone.org"
@@ -528,9 +511,7 @@ msgstr "أحطني علما بتحديثات لِنْفُونْ"
 msgid ""
 "Error, account not validated, username already used or server unreachable.\n"
 "Please go back and try again."
-msgstr ""
-"خطأ، لم يتم تأكيد الحساب، إسم المستخدم سبق استخدامه أو تعذر الوصول للخادم.\n"
-"يُرجى إعادة المحاولة لاحقا."
+msgstr "خطأ، لم يتم تأكيد الحساب، إسم المستخدم سبق استخدامه أو تعذر الوصول للخادم.\nيُرجى إعادة المحاولة لاحقا."
 
 #: ../gtk/setupwizard.c:405
 msgid "Thank you. Your account is now configured and ready for use."
@@ -538,13 +519,9 @@ msgstr "شكرا لك، لقد جرت تهيئة حسابك وهو الآن قا
 
 #: ../gtk/setupwizard.c:413
 msgid ""
-"Please validate your account by clicking on the link we just sent you by "
-"email.\n"
+"Please validate your account by clicking on the link we just sent you by email.\n"
 "Then come back here and press Next button."
-msgstr ""
-"يُرجى تأكيد حسابك وذلك بالضغط على الوصلة التي أرسلناها لك بالبريد "
-"الإلكتروني.\n"
-"ثم ارجع إلى هنا واضغط على زر التالي."
+msgstr "يُرجى تأكيد حسابك وذلك بالضغط على الوصلة التي أرسلناها لك بالبريد الإلكتروني.\nثم ارجع إلى هنا واضغط على زر التالي."
 
 #: ../gtk/setupwizard.c:602
 msgid "SIP account configuration assistant"
@@ -649,9 +626,7 @@ msgstr "مباشرة أو عبر خادم"
 msgid ""
 "download: %f\n"
 "upload: %f (kbit/s)"
-msgstr ""
-"التنزيل % f\n"
-"الرفع : %f (ك.بِتْ/الثانية)"
+msgstr "التنزيل % f\nالرفع : %f (ك.بِتْ/الثانية)"
 
 #: ../gtk/incall_view.c:272 ../gtk/incall_view.c:274
 #, c-format
@@ -765,9 +740,7 @@ msgstr "إيقاف مؤقت"
 msgid ""
 "<small><i>Recording into\n"
 "%s %s</i></small>"
-msgstr ""
-"<small><i>يسجل في\n"
-"%s %s</i></small>"
+msgstr "<small><i>يسجل في\n%s %s</i></small>"
 
 #: ../gtk/incall_view.c:954
 msgid "(Paused)"
@@ -820,9 +793,7 @@ msgstr "لم يتمكن من تشغيل التحكم في الصوت للنظا�
 msgid ""
 "Welcome!\n"
 "This assistant will help you to configure audio settings for Linphone"
-msgstr ""
-"مرحبا !\n"
-"سيمكنك هذا المرشد من تهيئة إعدادات الصوت من أجل لِنْفُونْ"
+msgstr "مرحبا !\nسيمكنك هذا المرشد من تهيئة إعدادات الصوت من أجل لِنْفُونْ"
 
 #: ../gtk/audio_assistant.c:328
 msgid "Capture device"
@@ -1074,20 +1045,7 @@ msgid ""
 "cs: Petr Pisar <petr.pisar@atlas.cz>\n"
 "hu: anonymous\n"
 "he: Eli Zaretskii <eliz@gnu.org>\n"
-msgstr ""
-"fr: Simon Morlat\n"
-"en: Simon Morlat and Delphine Perreau\n"
-"it: Alberto Zanoni <alberto.zanoni@-NO-SPAM-PLEASE!-tiscalinet.it>\n"
-"de: Jean-Jacques Sarton <jj.sarton@-NO-SPAM-PLEASE-t-online.de>\n"
-"sv: Daniel Nylander <po@danielnylander.se>\n"
-"es: Jesus Benitez <gnelson at inMail dot sk>\n"
-"ja: YAMAGUCHI YOSHIYA <yushiya@anet.ne.jp>\n"
-"pt_BR: Rafael Caesar Lenzi <rc_lenzi@yahoo.com.br>\n"
-"pl: Robert Nasiadek <darkone@darkone.pl>\n"
-"cs: Petr Pisar <petr.pisar@atlas.cz>\n"
-"hu: anonymous\n"
-"he: Eli Zaretskii <eliz@gnu.org>\n"
-"ar: Muhiyeddine Cherik <tx99h4@hotmail.com>\n"
+msgstr "fr: Simon Morlat\nen: Simon Morlat and Delphine Perreau\nit: Alberto Zanoni <alberto.zanoni@-NO-SPAM-PLEASE!-tiscalinet.it>\nde: Jean-Jacques Sarton <jj.sarton@-NO-SPAM-PLEASE-t-online.de>\nsv: Daniel Nylander <po@danielnylander.se>\nes: Jesus Benitez <gnelson at inMail dot sk>\nja: YAMAGUCHI YOSHIYA <yushiya@anet.ne.jp>\npt_BR: Rafael Caesar Lenzi <rc_lenzi@yahoo.com.br>\npl: Robert Nasiadek <darkone@darkone.pl>\ncs: Petr Pisar <petr.pisar@atlas.cz>\nhu: anonymous\nhe: Eli Zaretskii <eliz@gnu.org>\nar: Muhiyeddine Cherik <tx99h4@hotmail.com>\n"
 
 #: ../gtk/contact.ui.h:2
 msgid "SIP Address"
@@ -1246,8 +1204,8 @@ msgid "Send DTMFs as SIP info"
 msgstr "أرسِل الأرقام الهاتفية على هيئة SIP INFO"
 
 #: ../gtk/parameters.ui.h:14
-msgid "Use IPv6 instead of IPv4"
-msgstr "استخدم IPv6 عوضا عن IPv4"
+msgid "Allow IPv6"
+msgstr "السماح باستخدام IPv6"
 
 #: ../gtk/parameters.ui.h:15
 msgid "<b>Transport</b>"
@@ -1434,60 +1392,58 @@ msgid "<b>Privacy</b>"
 msgstr "<b>الأمان</b>"
 
 #: ../gtk/parameters.ui.h:62
+msgid "Automatically answer when a call is received"
+msgstr "الإجابة تلقائيا فور تلقي المكالمة"
+
+#: ../gtk/parameters.ui.h:63
+msgid "<b>Auto-answer</b>"
+msgstr "<b>الإجابة تلقائيا</b>"
+
+#: ../gtk/parameters.ui.h:64
 msgid "Manage SIP Accounts"
 msgstr "إدارة حسابات SIP"
 
-#: ../gtk/parameters.ui.h:63 ../gtk/tunnel_config.ui.h:4
+#: ../gtk/parameters.ui.h:65 ../gtk/tunnel_config.ui.h:4
 msgid "Enable"
 msgstr "فعِّل"
 
-#: ../gtk/parameters.ui.h:64 ../gtk/tunnel_config.ui.h:5
+#: ../gtk/parameters.ui.h:66 ../gtk/tunnel_config.ui.h:5
 msgid "Disable"
 msgstr "إلغاء التفعيل"
 
-#: ../gtk/parameters.ui.h:65
+#: ../gtk/parameters.ui.h:67
 msgid "<b>Codecs</b>"
 msgstr "<b>المراميز</b>"
 
-#: ../gtk/parameters.ui.h:66
+#: ../gtk/parameters.ui.h:68
 msgid "0 stands for \"unlimited\""
 msgstr "حدِّد 0 لعدم وضع أي حد"
 
-#: ../gtk/parameters.ui.h:67
+#: ../gtk/parameters.ui.h:69
 msgid "Upload speed limit in Kbit/sec:"
 msgstr "حد سرعة الرفع بالكيلوبِتْ/الثانية :"
 
-#: ../gtk/parameters.ui.h:68
+#: ../gtk/parameters.ui.h:70
 msgid "Download speed limit in Kbit/sec:"
 msgstr "حد سرعة التنزيل بالكيلوبِتْ/الثانية :"
 
-#: ../gtk/parameters.ui.h:69
+#: ../gtk/parameters.ui.h:71
 msgid "Enable adaptive rate control"
 msgstr "فعِّل التحكم المتكيف مع الصبيب"
 
-#: ../gtk/parameters.ui.h:70
+#: ../gtk/parameters.ui.h:72
 msgid ""
 "<i>Adaptive rate control is a technique to dynamically guess the available "
 "bandwidth during a call.</i>"
-msgstr ""
-"<i>التحكم المتكيف مع الصبيب هو تقنية لملائمة جودة الصوت والصورة بناءً على سعة "
-"قناة الاتصال المتاحة خلال المكالمة.</i>"
+msgstr "<i>التحكم المتكيف مع الصبيب هو تقنية لملائمة جودة الصوت والصورة بناءً على سعة قناة الاتصال المتاحة خلال المكالمة.</i>"
 
-#: ../gtk/parameters.ui.h:71
+#: ../gtk/parameters.ui.h:73
 msgid "<b>Bandwidth control</b>"
 msgstr "<b>إدارة سعة القناة</b>"
 
-#: ../gtk/parameters.ui.h:72
+#: ../gtk/parameters.ui.h:74
 msgid "Codecs"
 msgstr "المراميز"
-
-#: ../gtk/parameters.ui.h:73
-msgid "Automatically answer when a call is received"
-msgstr ""
-
-#: ../gtk/parameters.ui.h:74
-msgid "Call parameters"
-msgstr ""
 
 #: ../gtk/parameters.ui.h:75
 msgid "<b>Language</b>"
@@ -1740,16 +1696,9 @@ msgstr "تحديد عنوان URI التهيئة عن بعد"
 
 #: ../gtk/config-uri.ui.h:2
 msgid ""
-"This dialog allows to set an http or https address when configuration is to "
-"be fetched at startup.\n"
-"Please enter or modify the configuration URI below. After clicking OK, "
-"Linphone will restart automatically in order to fetch and take into account "
-"the new configuration. "
-msgstr ""
-"يسمح لك مربع الحوار هذا بإعداد عنوان http أو https الذي من خلاله تود جلب "
-"التهيئة عند بدء البرنامج.\n"
-"أدخل العنوان أسفله. بعد تأكيد الأمر، ستجري إعادة تشغيل لِنْفُونْ تلقائيا من أجل "
-"جلب والأخذ بعين الاعتبار الإعدادات الحديثة."
+"This dialog allows to set an http or https address when configuration is to be fetched at startup.\n"
+"Please enter or modify the configuration URI below. After clicking OK, Linphone will restart automatically in order to fetch and take into account the new configuration. "
+msgstr "يسمح لك مربع الحوار هذا بإعداد عنوان http أو https الذي من خلاله تود جلب التهيئة عند بدء البرنامج.\nأدخل العنوان أسفله. بعد تأكيد الأمر، ستجري إعادة تشغيل لِنْفُونْ تلقائيا من أجل جلب والأخذ بعين الاعتبار الإعدادات الحديثة."
 
 #: ../gtk/provisioning-fetch.ui.h:1
 msgid "Configuring..."
@@ -1763,24 +1712,24 @@ msgstr "رجاءً انتظر ريثما ينتهي من جلب الإعدادا
 msgid "Ready"
 msgstr "جاهز"
 
-#: ../coreapi/linphonecore.c:2535
+#: ../coreapi/linphonecore.c:2534
 msgid "Configuring"
 msgstr "تجري التهيئة"
 
-#: ../coreapi/linphonecore.c:2709
+#: ../coreapi/linphonecore.c:2708
 msgid "Looking for telephone number destination..."
 msgstr "يجري البحث عن وجهة رقم الهاتف..."
 
-#: ../coreapi/linphonecore.c:2711
+#: ../coreapi/linphonecore.c:2710
 msgid "Could not resolve this number."
 msgstr "لم يتمكن من إيجاد هذا الرقم."
 
 #. must be known at that time
-#: ../coreapi/linphonecore.c:2997
+#: ../coreapi/linphonecore.c:2996
 msgid "Contacting"
 msgstr "يتصل ب"
 
-#: ../coreapi/linphonecore.c:3002
+#: ../coreapi/linphonecore.c:3001
 msgid "Could not call"
 msgstr "لم يتمكن من الاتصال"
 
@@ -1880,128 +1829,125 @@ msgstr "حالة مجهولة"
 msgid ""
 "The sip proxy address you entered is invalid, it must start with \"sip:\" "
 "followed by a hostname."
-msgstr ""
-"عنوان SIP الذي أدخلت غير صالح، يجب أن يبدأ ب \"sip:\" متبوعا بإسم النطاق."
+msgstr "عنوان SIP الذي أدخلت غير صالح، يجب أن يبدأ ب \"sip:\" متبوعا بإسم النطاق."
 
 #: ../coreapi/proxy.c:334
 msgid ""
 "The sip identity you entered is invalid.\n"
 "It should look like sip:username@proxydomain, such as sip:alice@example.net"
-msgstr ""
-"هوية SIP التي أدخلت غير صحيحة.\n"
-"يجب أن تشبه هذا النمط sip:username@proxydomain، مثلا sip:alice@example.net"
+msgstr "هوية SIP التي أدخلت غير صحيحة.\nيجب أن تشبه هذا النمط sip:username@proxydomain، مثلا sip:alice@example.net"
 
 #: ../coreapi/proxy.c:1416
 #, c-format
 msgid "Could not login as %s"
 msgstr "تعذر الولوج بالهوية %s"
 
-#: ../coreapi/callbacks.c:419
+#: ../coreapi/callbacks.c:428
 msgid "Remote ringing."
 msgstr "يرن الجرس عن بعد..."
 
-#: ../coreapi/callbacks.c:431
+#: ../coreapi/callbacks.c:440
 msgid "Remote ringing..."
 msgstr "يرن الجرس عن بعد..."
 
-#: ../coreapi/callbacks.c:452
+#: ../coreapi/callbacks.c:461
 msgid "Early media."
 msgstr "أخذ المكالمة مبكرا."
 
-#: ../coreapi/callbacks.c:524
+#: ../coreapi/callbacks.c:533
 #, c-format
 msgid "Call with %s is paused."
 msgstr "المكاملة مع %s متوقفة."
 
-#: ../coreapi/callbacks.c:537
+#: ../coreapi/callbacks.c:546
 #, c-format
 msgid "Call answered by %s - on hold."
 msgstr "يجيب %s عن المكالمة - في وضع الانتظار."
 
-#: ../coreapi/callbacks.c:547
+#: ../coreapi/callbacks.c:556
 msgid "Call resumed."
 msgstr "استُعيدت المكالمة."
 
-#: ../coreapi/callbacks.c:551
+#: ../coreapi/callbacks.c:560
 #, c-format
 msgid "Call answered by %s."
 msgstr "أجاب عن المكالمة %s."
 
-#: ../coreapi/callbacks.c:574
+#: ../coreapi/callbacks.c:583
 msgid "Incompatible, check codecs or security settings..."
 msgstr "غير موائم، تحقق من المراميز أو إعدادات الأمان..."
 
-#: ../coreapi/callbacks.c:579 ../coreapi/callbacks.c:891
+#: ../coreapi/callbacks.c:588 ../coreapi/callbacks.c:900
 msgid "Incompatible media parameters."
 msgstr "إعدادات الوسائط غير موائمة."
 
-#: ../coreapi/callbacks.c:609
+#: ../coreapi/callbacks.c:618
 msgid "We have been resumed."
 msgstr "استُأنِفت المكالمة."
 
 #. we are being paused
-#: ../coreapi/callbacks.c:617
+#: ../coreapi/callbacks.c:626
 msgid "We are paused by other party."
 msgstr "وُقِّفت المكالمة مؤقتا من طرف آخر."
 
 #. reINVITE and in-dialogs UPDATE go here
-#: ../coreapi/callbacks.c:651
+#: ../coreapi/callbacks.c:660
 msgid "Call is updated by remote."
 msgstr "حُدِّث الاتصال من البعيد."
 
-#: ../coreapi/callbacks.c:767
+#: ../coreapi/callbacks.c:776
 msgid "Call terminated."
 msgstr "أُنهيت المكالمة."
 
-#: ../coreapi/callbacks.c:795
+#: ../coreapi/callbacks.c:804
 msgid "User is busy."
 msgstr "المستخدم مشغول."
 
-#: ../coreapi/callbacks.c:796
+#: ../coreapi/callbacks.c:805
 msgid "User is temporarily unavailable."
 msgstr "المستخدم غير متاح مؤقتا."
 
 #. char *retrymsg=_("%s. Retry after %i minute(s).");
-#: ../coreapi/callbacks.c:798
+#: ../coreapi/callbacks.c:807
 msgid "User does not want to be disturbed."
 msgstr "لا يريد المستخدم أي إزعاج."
 
-#: ../coreapi/callbacks.c:799
+#: ../coreapi/callbacks.c:808
 msgid "Call declined."
 msgstr "تم تجاهل المكالمة."
 
-#: ../coreapi/callbacks.c:814
+#: ../coreapi/callbacks.c:823
 msgid "Request timeout."
 msgstr "انتهت مهلة الطلب."
 
-#: ../coreapi/callbacks.c:845
+#: ../coreapi/callbacks.c:854
 msgid "Redirected"
 msgstr "مُوجَّه"
 
-#: ../coreapi/callbacks.c:900
+#: ../coreapi/callbacks.c:909
 msgid "Call failed."
 msgstr "فشل الاتصال."
 
-#: ../coreapi/callbacks.c:978
+#: ../coreapi/callbacks.c:987
 #, c-format
 msgid "Registration on %s successful."
 msgstr "تم التسجيل في %s بنجاح."
 
-#: ../coreapi/callbacks.c:979
+#: ../coreapi/callbacks.c:988
 #, c-format
 msgid "Unregistration on %s done."
 msgstr "أُلغي التسجيل في %s ."
 
-#: ../coreapi/callbacks.c:997
+#: ../coreapi/callbacks.c:1006
 msgid "no response timeout"
 msgstr "لا إجابة قبل انتهاء المهلة"
 
-#: ../coreapi/callbacks.c:1000
+#: ../coreapi/callbacks.c:1009
 #, c-format
 msgid "Registration on %s failed: %s"
 msgstr "فَشِل التسجيل في %s: %s"
 
-#: ../coreapi/callbacks.c:1007
+#: ../coreapi/callbacks.c:1016
 msgid "Service unavailable, retrying"
 msgstr "خدمة غير متاحة، تجري الإعادة"
 
@@ -2011,11 +1957,11 @@ msgstr "خدمة غير متاحة، تجري الإعادة"
 msgid "Authentication token is %s"
 msgstr "شارة التحقق من الهوية هي %s"
 
-#: ../coreapi/linphonecall.c:1301
+#: ../coreapi/linphonecall.c:1305
 msgid "Call parameters were successfully modified."
-msgstr ""
+msgstr "عُدِّلت معاملات المكالمات بنجاج."
 
-#: ../coreapi/linphonecall.c:3645
+#: ../coreapi/linphonecall.c:3659
 #, c-format
 msgid "You have missed %i call."
 msgid_plural "You have missed %i calls."
@@ -2050,12 +1996,7 @@ msgid ""
 "To: %s\n"
 "Status: %s\n"
 "Duration: %i mn %i sec\n"
-msgstr ""
-"%s في %s\n"
-"من : %s\n"
-"إلى : %s\n"
-"الحالة : %s\n"
-"المدة : %i دقيقة %i ثانية\n"
+msgstr "%s في %s\nمن : %s\nإلى : %s\nالحالة : %s\nالمدة : %i دقيقة %i ثانية\n"
 
 #: ../coreapi/call_log.c:221
 msgid "Outgoing call"

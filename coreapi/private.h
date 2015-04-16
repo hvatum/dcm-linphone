@@ -227,7 +227,8 @@ struct _LinphoneCall{
 	LinphoneAddress *me; /*Either from or to based on call dir*/
 	SalOp *op;
 	SalOp *ping_op;
-	char localip[LINPHONE_IPADDR_SIZE]; /* our best guess for local ipaddress for this call */
+	char sig_localip[LINPHONE_IPADDR_SIZE]; /* our best guess for local sig ipaddress for this call */
+	char media_localip[LINPHONE_IPADDR_SIZE]; /* our best guess for local media ipaddress for this call */
 	LinphoneCallState state;
 	LinphoneCallState prevstate;
 	LinphoneCallState transfer_state; /*idle if no transfer*/
@@ -283,6 +284,8 @@ struct _LinphoneCall{
 	bool_t record_active;
 
 	bool_t paused_by_app;
+
+	MSWebCam *cam; /*webcam use for this call*/
 };
 
 BELLE_SIP_DECLARE_VPTR(LinphoneCall);
@@ -550,6 +553,8 @@ BELLE_SIP_DECLARE_VPTR(LinphoneChatRoom);
 
 
 struct _LinphoneFriend{
+	belle_sip_object_t base;
+	void *user_data;
 	LinphoneAddress *uri;
 	SalOp *insub;
 	SalOp *outsub;
@@ -558,13 +563,14 @@ struct _LinphoneFriend{
 	struct _LinphoneCore *lc;
 	BuddyInfo *info;
 	char *refkey;
-	void *up;
 	bool_t subscribe;
 	bool_t subscribe_active;
 	bool_t inc_subscribe_pending;
 	bool_t commit;
 	bool_t initial_subscribes_sent; /*used to know if initial subscribe message was sent or not*/
 };
+
+BELLE_SIP_DECLARE_VPTR(LinphoneFriend);
 
 
 typedef struct sip_config
@@ -853,6 +859,7 @@ int linphone_core_get_calls_nb(const LinphoneCore *lc);
 
 void linphone_core_set_state(LinphoneCore *lc, LinphoneGlobalState gstate, const char *message);
 void linphone_call_make_local_media_description(LinphoneCore *lc, LinphoneCall *call);
+void linphone_call_make_local_media_description_with_params(LinphoneCore *lc, LinphoneCall *call, LinphoneCallParams *params);
 void linphone_call_increment_local_media_description(LinphoneCall *call);
 void linphone_core_update_streams(LinphoneCore *lc, LinphoneCall *call, SalMediaDescription *new_md);
 
@@ -1055,7 +1062,11 @@ static MS2_INLINE bool_t payload_type_enabled(const PayloadType *pt) {
 bool_t is_payload_type_number_available(const MSList *l, int number, const PayloadType *ignore);
 
 const MSCryptoSuite * linphone_core_get_srtp_crypto_suites(LinphoneCore *lc);
-MsZrtpCryptoTypesCount linphone_core_get_zrtp_key_agreements(LinphoneCore *lc, MSZrtpKeyAgreement keyAgreements[MS_MAX_ZRTP_CRYPTO_TYPES]);
+MsZrtpCryptoTypesCount linphone_core_get_zrtp_key_agreement_suites(LinphoneCore *lc, MSZrtpKeyAgreement keyAgreements[MS_MAX_ZRTP_CRYPTO_TYPES]);
+MsZrtpCryptoTypesCount linphone_core_get_zrtp_cipher_suites(LinphoneCore *lc, MSZrtpCipher ciphers[MS_MAX_ZRTP_CRYPTO_TYPES]);
+MsZrtpCryptoTypesCount linphone_core_get_zrtp_hash_suites(LinphoneCore *lc, MSZrtpHash hashes[MS_MAX_ZRTP_CRYPTO_TYPES]);
+MsZrtpCryptoTypesCount linphone_core_get_zrtp_auth_suites(LinphoneCore *lc, MSZrtpAuthTag authTags[MS_MAX_ZRTP_CRYPTO_TYPES]);
+MsZrtpCryptoTypesCount linphone_core_get_zrtp_sas_suites(LinphoneCore *lc, MSZrtpSasType sasTypes[MS_MAX_ZRTP_CRYPTO_TYPES]);
 
 /** Belle Sip-based objects need unique ids
   */
@@ -1073,7 +1084,8 @@ BELLE_SIP_TYPE_ID(LinphoneChatRoom),
 BELLE_SIP_TYPE_ID(LinphoneContent),
 BELLE_SIP_TYPE_ID(LinphoneLDAPContactProvider),
 BELLE_SIP_TYPE_ID(LinphoneLDAPContactSearch),
-BELLE_SIP_TYPE_ID(LinphoneProxyConfig)
+BELLE_SIP_TYPE_ID(LinphoneProxyConfig),
+BELLE_SIP_TYPE_ID(LinphoneFriend)
 BELLE_SIP_DECLARE_TYPES_END
 
 
@@ -1170,7 +1182,10 @@ typedef struct _VTableReference  VTableReference;
 void v_table_reference_destroy(VTableReference *ref);
 
 void _linphone_core_add_listener(LinphoneCore *lc, LinphoneCoreVTable *vtable, bool_t autorelease);
-
+#ifdef VIDEO_ENABLED
+MSWebCam *linphone_call_get_video_device(const LinphoneCall *call);
+MSWebCam *get_nowebcam_device();
+#endif
 #ifdef __cplusplus
 }
 #endif
