@@ -180,6 +180,27 @@ static LPC_COMMAND commands[] = {
 		"'camera off'\t: disable sending of local camera's video to remote end.\n"
 	},
 #endif
+	{ "soundcard", lpc_cmd_soundcard, "Manage soundcards",
+		"'soundcard list' : list all sound devices.\n"
+		"'soundcard list capture' : list capture sound devices.\n"
+		"'soundcard list playback' : list playback sound devices.\n"
+		"'soundcard list ringer' : list ringer sound devices.\n"
+		"'soundcard show' : show current sound devices configuration.\n"
+		"'soundcard use <index>' : select a sound device.\n"
+		"'soundcard capture <index>' : select a capture device.\n"
+		"'soundcard playback <index>' : select a playback device.\n"
+		"'soundcard ringer <index>' : select a ringer device.\n"
+		"'soundcard use files' : use .wav files instead of soundcard\n"
+	},
+	{ "webcam", lpc_cmd_webcam, "Manage webcams",
+		"'webcam list' : list all known devices.\n"
+		"'webcam use <index>' : select a video device.\n"
+	},
+	{ "ipv6", lpc_cmd_ipv6, "Use IPV6",
+		"'ipv6 status' : show ipv6 usage status.\n"
+		"'ipv6 enable' : enable the use of the ipv6 network.\n"
+		"'ipv6 disable' : do not use ipv6 network."
+        },
 	{ "chat", lpc_cmd_chat, "Chat with a SIP uri",
 		"'chat <sip-url> \"message\"' "
 		": send a chat message \"message\" to the specified destination."
@@ -1231,16 +1252,34 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		while(*arg2 && isspace(*arg2)) ++arg2;
 	}
 
-	if (strcmp(arg1, "list")==0)
+        if (strcmp(arg1, "reload")==0)
+        {
+		linphone_core_reload_sound_devices(lc);
+        }
+        else if (strcmp(arg1, "list")==0)
 	{
+		int mode = 0;
+		if (arg2 && strcmp(arg2, "capture")==0)
+		{
+			mode = 1;
+		}
+		// Assuming from missing linphone_core_sound_device_can_playback
+		// that playback and ringing devices are the same. Seems logical though...
+		else if (arg2 && (strcmp(arg2, "playback")==0 || strcmp(arg2, "ring")==0))
+		{
+			mode = 2;
+		}
 		dev=linphone_core_get_sound_devices(lc);
 		for(i=0; dev[i]!=NULL; ++i){
-			linphonec_out("%i: %s\n",i,dev[i]);
+			bool_t playback = linphone_core_sound_device_can_playback(lc, dev[i]);
+			if (mode == 0 || ( mode == 1 && !playback) || (mode == 2 && playback))
+			{
+				linphonec_out("%i: %s\n",i,dev[i]);
+			}
 		}
 		return 1;
 	}
-
-	if (strcmp(arg1, "show")==0)
+        else if (strcmp(arg1, "show")==0)
 	{
 		linphonec_out("Ringer device: %s\n",
 			linphone_core_get_ringer_device(lc));
@@ -1250,32 +1289,28 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 			linphone_core_get_capture_device(lc));
 		return 1;
 	}
-
-	if (strcmp(arg1, "use")==0 && arg2)
+        else if (strcmp(arg1, "use")==0 && arg2)
 	{
+                const char *devname;
 		if (strcmp(arg2, "files")==0)
 		{
 			linphonec_out("Using wav files instead of soundcard.\n");
 			linphone_core_use_files(lc,TRUE);
 			return 1;
 		}
-
-		dev=linphone_core_get_sound_devices(lc);
 		index=atoi(arg2); /* FIXME: handle not-a-number */
-		for(i=0;dev[i]!=NULL;i++)
-		{
-			if (i!=index) continue;
-
-			linphone_core_set_ringer_device(lc,dev[i]);
-			linphone_core_set_playback_device(lc,dev[i]);
-			linphone_core_set_capture_device(lc,dev[i]);
-			linphonec_out("Using sound device %s\n",dev[i]);
+		devname=index_to_devname(lc,index);
+		if (devname!=NULL){
+			linphone_core_set_ringer_device(lc,devname);
+			linphone_core_set_playback_device(lc,devname);
+			linphone_core_set_capture_device(lc,devname);
+			linphonec_out("Using sound device %s\n",devname);
 			return 1;
 		}
 		linphonec_out("No such sound device\n");
 		return 1;
 	}
-	if (strcmp(arg1, "capture")==0)
+        else if (strcmp(arg1, "capture")==0)
 	{
 		const char *devname=linphone_core_get_capture_device(lc);
 		if (!arg2){
@@ -1293,7 +1328,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		return 1;
 	}
-	if (strcmp(arg1, "playback")==0)
+        else if (strcmp(arg1, "playback")==0)
 	{
 		const char *devname=linphone_core_get_playback_device(lc);
 		if (!arg2){
@@ -1311,7 +1346,7 @@ static int lpc_cmd_soundcard(LinphoneCore *lc, char *args)
 		}
 		return 1;
 	}
-	if (strcmp(arg1, "ring")==0)
+        else if (strcmp(arg1, "ring")==0)
 	{
 		const char *devname=linphone_core_get_ringer_device(lc);
 		if (!arg2){
@@ -1943,7 +1978,8 @@ static int lpc_cmd_register(LinphoneCore *lc, char *args){
 		LinphoneAddress *from;
 		LinphoneAuthInfo *info;
 		if ((from=linphone_address_new(identity))!=NULL){
-			info=linphone_auth_info_new(linphone_address_get_username(from),NULL,passwd,NULL,NULL,linphone_address_get_username(from));
+                    /* maybe set domain (last parameter) to linphone_address_get_username(from) */
+			info=linphone_auth_info_new(linphone_address_get_username(from),linphone_address_get_username(from),passwd,NULL,NULL,NULL);
 			linphone_core_add_auth_info(lc,info);
 			linphone_address_destroy(from);
 			linphone_auth_info_destroy(info);

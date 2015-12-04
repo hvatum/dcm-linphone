@@ -1086,7 +1086,6 @@ void linphone_call_update_ice_from_remote_media_description(LinphoneCall *call, 
 
 bool_t linphone_core_media_description_contains_video_stream(const SalMediaDescription *md){
 	int i;
-
 	for (i = 0; md && i < md->nb_streams; i++) {
 		if (md->streams[i].type == SalVideo && md->streams[i].rtp_port!=0)
 			return TRUE;

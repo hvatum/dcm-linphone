@@ -1760,7 +1760,7 @@ void linphone_gtk_fixed_video_port_toggle(void) {
 	}
 }
 
-
+#ifdef TUNNEL_ENABLED
 void linphone_gtk_edit_tunnel_closed(GtkWidget *button){
 	GtkWidget *pb=gtk_widget_get_toplevel(button);
 	gtk_widget_destroy(pb);
@@ -1841,6 +1841,7 @@ void linphone_gtk_tunnel_ok(GtkButton *button){
 void linphone_gtk_tunnel_cancel(GtkButton *button){
 
 }
+#endif
 
 static void show_dscp(GtkWidget *entry, int val){
 	char tmp[20];

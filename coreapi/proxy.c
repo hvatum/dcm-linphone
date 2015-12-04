@@ -1362,7 +1362,12 @@ static bool_t can_register(LinphoneProxyConfig *cfg){
 	}
 #endif //BUILD_UPNP
 	if (lc->sip_conf.register_only_when_network_is_up){
-		return lc->network_reachable;
+		LinphoneTunnel *tunnel=linphone_core_get_tunnel(lc);
+		if (tunnel && linphone_tunnel_enabled(tunnel)){
+			return linphone_tunnel_connected(tunnel);
+		}else{
+			return lc->network_reachable;
+		}
 	}
 	return TRUE;
 }

@@ -3587,7 +3587,7 @@ static void update_rtp_stats(LinphoneCall *call, int stream_index) {
 }
 
 static void linphone_call_stop_audio_stream(LinphoneCall *call) {
-	if (call->audiostream!=NULL) {
+	if (call!=NULL && call->audiostream!=NULL) {
 		linphone_reporting_update_media_info(call, LINPHONE_CALL_STATS_AUDIO);
 		media_stream_reclaim_sessions(&call->audiostream->ms,&call->sessions[call->main_audio_stream_index]);
 
