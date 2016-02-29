@@ -17,7 +17,7 @@ if test "$LINPHONE_EXTRA_VERSION" != "" ;then
 	LINPHONE_VERSION=$LINPHONE_VERSION.${LINPHONE_EXTRA_VERSION}
 fi
 
-LIBLINPHONE_SO_CURRENT=8 dnl increment this number when you add/change/remove an interface
+LIBLINPHONE_SO_CURRENT=9 dnl increment this number when you add/change/remove an interface
 LIBLINPHONE_SO_REVISION=0 dnl increment this number when you change source code, without changing interfaces; set to 0 when incrementing CURRENT
 LIBLINPHONE_SO_AGE=0 dnl increment this number when you add an interface, set to 0 if you remove an interface
 
@@ -39,6 +39,7 @@ AC_CONFIG_MACRO_DIR([m4])
 dnl do not put anythingelse before AC_PROG_CC unless checking if macro still work for clang
 AC_PROG_CXX(["xcrun clang++" g++])
 AC_PROG_CC(["xcrun clang" gcc])
+AC_PROG_OBJC(["xcrun clang" gcc])
 
 gl_LD_OUTPUT_DEF
 
@@ -595,6 +596,8 @@ AC_ARG_WITH(ffmpeg,
 	[ ffmpegdir=/usr ]
 )
 
+AM_CONDITIONAL([BUILD_MACOS], [test "x$build_macos" = "xyes"])
+
 if test "$video" = "true"; then
 
 	if test "$enable_x11" = "true"; then
@@ -1029,12 +1032,6 @@ else
                                         ],[foo=bar],[$CUNIT_LIBS])
 fi
 
-case "$target_os" in
-	*linux*)
-		# Eliminate -lstdc++ addition to postdeps for cross compiles.
-		postdeps_CXX=`echo " $postdeps_CXX " | sed 's, -lstdc++ ,,g'`
-	;;
-esac
 
 
 dnl ##################################################

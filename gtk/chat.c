@@ -81,6 +81,12 @@ char *linphone_gtk_message_storage_get_db_file(const char *filename){
 	return db_file;
 }
 
+void linphone_gtk_mark_chat_read(LinphoneChatRoom *cr) {
+	linphone_chat_room_mark_as_read(cr);
+#ifdef __APPLE__
+	linphone_gtk_update_badge_count();
+#endif
+}
 
 void linphone_gtk_quit_chatroom(LinphoneChatRoom *cr) {
 	GtkWidget *main_window=linphone_gtk_get_main_window ();
@@ -91,7 +97,7 @@ void linphone_gtk_quit_chatroom(LinphoneChatRoom *cr) {
 
 	g_return_if_fail(w!=NULL);
 	gtk_notebook_remove_page(GTK_NOTEBOOK(nb),gtk_notebook_page_num(GTK_NOTEBOOK(nb),w));
-	linphone_chat_room_mark_as_read(cr);
+	linphone_gtk_mark_chat_read(cr);
 	g_object_set_data(G_OBJECT(friendlist),"chatview",NULL);
 	from=g_object_get_data(G_OBJECT(w),"from_message");
 	if (from){
@@ -280,7 +286,7 @@ void linphone_gtk_compose_text(void) {
 	LinphoneChatRoom *cr=g_object_get_data(G_OBJECT(w),"cr");
 	if (cr) {
 		linphone_chat_room_compose(cr);
-		linphone_chat_room_mark_as_read(cr);
+		linphone_gtk_mark_chat_read(cr);
 		linphone_gtk_friend_list_update_button_display(GTK_TREE_VIEW(friendlist));
 	}
 }
@@ -296,7 +302,7 @@ void linphone_gtk_send_text(void){
 	if (strlen(entered)>0) {
 		LinphoneChatMessage *msg;
 		LinphoneChatMessageCbs *cbs;
-		msg=linphone_chat_room_create_message(cr,entered);
+		msg=linphone_chat_message_ref(linphone_chat_room_create_message(cr,entered));
 		cbs=linphone_chat_message_get_callbacks(msg);
 		linphone_chat_message_cbs_set_msg_state_changed(cbs,on_chat_state_changed);
 		linphone_chat_room_send_chat_message(cr,msg);
@@ -307,6 +313,8 @@ void linphone_gtk_send_text(void){
 		g_signal_handlers_disconnect_by_func(G_OBJECT(entry),(GCallback)linphone_gtk_compose_text,NULL);
 		gtk_entry_set_text(GTK_ENTRY(entry),"");
 		g_signal_connect_swapped(G_OBJECT(entry),"changed",(GCallback)linphone_gtk_compose_text,NULL);
+
+		linphone_chat_message_unref(msg);
 	}
 }
 
@@ -341,7 +349,7 @@ void display_history_message(GtkWidget *chat_view,MSList *messages,const Linphon
 			g_object_set_data(G_OBJECT(chat_view),"from_message",NULL);
 			g_free(tmp);
 		}
-		
+
 		linphone_gtk_free_list(messages);
 	}
 }
@@ -381,7 +389,7 @@ static gboolean link_event_handler(GtkTextTag *tag, GObject *text_view,GdkEvent 
 		LinphoneChatRoom *chat_room = (LinphoneChatRoom *)g_object_get_data(G_OBJECT(chat_view), "cr");
 		GtkWidget *main_window = linphone_gtk_get_main_window();
 		GtkWidget *friendlist = linphone_gtk_get_widget(main_window, "contact_list");
-		
+
 		gtk_text_iter_backward_to_tag_toggle(&uri_begin, tag);
 		gtk_text_iter_forward_to_tag_toggle(&uri_end, tag);
 		uri = gtk_text_iter_get_slice(&uri_begin, &uri_end);
@@ -393,10 +401,10 @@ static gboolean link_event_handler(GtkTextTag *tag, GObject *text_view,GdkEvent 
 			gtk_menu_popup(menu, NULL, NULL, NULL, NULL, 3, gdk_event_get_time(event));
 		}
 		g_free(uri);
-		
-		linphone_chat_room_mark_as_read(chat_room);
+
+		linphone_gtk_mark_chat_read(chat_room);
 		linphone_gtk_friend_list_update_button_display(GTK_TREE_VIEW(friendlist));
-		
+
 		return TRUE;
 	}
 	return FALSE;
@@ -451,6 +459,18 @@ static gboolean copy_uri_into_clipboard_handler(GtkMenuItem *menuitem, gpointer 
 	}
 	clipboard = gtk_clipboard_get(clipboard_atom);
 	if(uri) gtk_clipboard_set_text(clipboard, uri, -1);
+	return FALSE;
+}
+
+static gint linphone_gtk_window_focused(GtkWidget* widget, GdkEvent *event, gpointer user_data) {
+	// if we are in a chat, mark it as read
+	GtkWidget *main_window=linphone_gtk_get_main_window();
+	GtkWidget *friendlist=linphone_gtk_get_widget(main_window,"contact_list");
+	GtkWidget *w=(GtkWidget*)g_object_get_data(G_OBJECT(friendlist),"chatview");
+	LinphoneChatRoom *cr=w?g_object_get_data(G_OBJECT(w),"cr"):NULL;
+	if (cr) {
+		linphone_gtk_mark_chat_read(cr);
+	}
 	return FALSE;
 }
 
@@ -530,6 +550,9 @@ GtkWidget* linphone_gtk_init_chatroom(LinphoneChatRoom *cr, const LinphoneAddres
 	g_signal_connect_swapped(G_OBJECT(entry),"activate",(GCallback)linphone_gtk_send_text,NULL);
 	g_signal_connect_swapped(G_OBJECT(entry),"changed",(GCallback)linphone_gtk_compose_text,NULL);
 	g_signal_connect(G_OBJECT(notebook),"switch_page",(GCallback)linphone_gtk_notebook_tab_select,NULL);
+
+	gtk_signal_connect(GTK_OBJECT(main_window), "focus-in-event", GTK_SIGNAL_FUNC(linphone_gtk_window_focused), NULL);
+
 	return chat_view;
 }
 
